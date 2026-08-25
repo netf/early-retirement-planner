@@ -43,6 +43,7 @@ test("the starter plan puts the six numbers where the profile expects them and i
     assert.equal(plan.accounts[profile.savingTargets.bridge]!.balance, 60_000);
     assert.equal(plan.accounts[profile.savingTargets.bridge]!.monthlyContribution, 900);
     assert.equal(plan.properties.length, 0);
+    assert.equal(plan.spendingStrategy, "fixed", "a first plan asks the fixed-amount question");
     assert.equal(plan.essentialMonthlySpending, 1_700);
     assert.ok(plan.essentialMonthlySpending < plan.desiredMonthlySpending && plan.spendingCeilingMonthly > plan.desiredMonthlySpending);
     assert.equal(plan.balancesAsOf, "2026-08-25");

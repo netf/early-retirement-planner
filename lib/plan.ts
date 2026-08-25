@@ -448,6 +448,8 @@ export function buildStarterPlan(profileId: ProfileId, starter: StarterInputs): 
     currentAge: starter.currentAge,
     retirementAge: starter.retirementAge,
     desiredMonthlySpending: spending,
+    // A first plan answers the question people arrive with: "can I spend this much?" — the flexible rules are a discovery, not an assumption.
+    spendingStrategy: "fixed",
     essentialMonthlySpending: Math.round(spending * 0.7 / 50) * 50,
     spendingCeilingMonthly: Math.round(spending * 1.3 / 50) * 50,
     spendingMode: "level",
