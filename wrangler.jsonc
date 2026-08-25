@@ -4,5 +4,8 @@
   "main": "./worker/index.ts",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // The one canonical host; the *.workers.dev copy is off so links, analytics and search all point here.
+  "routes": [{ "pattern": "fire.netf.io", "custom_domain": true }],
+  "workers_dev": false
 }
