@@ -1,5 +1,7 @@
 # Early Retirement Planner
 
+[![CI](https://github.com/netf/early-retirement-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/netf/early-retirement-planner/actions/workflows/ci.yml)
+
 **Will your money last if you stop work early?** A free planner for the UK, US and Poland. Enter your ages, spending, accounts, property and pensions; it runs every year of your plan through 1,000 possible futures of markets and inflation, applying each country's tax and pension rules, and tells you how often the money lasts — plus the earliest age the plan supports, the extra saving that would make it work, and what it can carry.
 
 Everything runs in the visitor's browser (the heavy maths in a Web Worker). Nothing is sent to a server; a plan lives in the browser's local storage and can be shared as a link or a file, which only the holder can open. **This is a planning tool, not financial advice** — see `/about`.
@@ -29,7 +31,7 @@ npx wrangler login   # once
 npm run deploy       # builds, then `wrangler deploy`
 ```
 
-`npm run deploy:check` does a dry run. The worker is named in `wrangler.jsonc`; set `SITE_URL` at build time (e.g. `SITE_URL=https://early-retirement-planner.<account>.workers.dev npm run deploy`) so link previews resolve.
+`npm run deploy:check` does a dry run. On GitHub, every push and pull request runs lint, typecheck, the engine tests, a production build and a Worker dry run (`.github/workflows/ci.yml`); a green CI on `main` triggers the deploy workflow, which needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit) and `CLOUDFLARE_ACCOUNT_ID`, plus the variable `SITE_URL`. The worker is named in `wrangler.jsonc`; set `SITE_URL` at build time (e.g. `SITE_URL=https://early-retirement-planner.<account>.workers.dev npm run deploy`) so link previews resolve.
 
 ## Layout
 

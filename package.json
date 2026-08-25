@@ -10,7 +10,11 @@
     "test:engine": "node --experimental-strip-types --test tests/*.test.ts",
     "lint": "eslint . --ignore-pattern dist",
     "deploy": "npm run build && wrangler deploy",
-    "deploy:check": "npm run build && wrangler deploy --dry-run"
+    "deploy:check": "npm run build && wrangler deploy --dry-run",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "engines": {
+    "node": ">=22.6"
   },
   "dependencies": {
     "next": "16.2.6",
@@ -35,8 +39,5 @@
     "wrangler": "4.92.0"
   },
   "type": "module",
-  "displayName": "Early Retirement Planner",
-  "engines": {
-    "node": ">=22.13.0"
-  }
+  "displayName": "Early Retirement Planner"
 }
