@@ -20,7 +20,8 @@ Everything runs in the visitor's browser (the heavy maths in a Web Worker). Noth
 npm install
 npm run dev          # http://localhost:5173
 npm test             # 112 engine tests, then a production build
-npm run test:engine  # tests only
+npm run test:engine  # engine tests only
+npm run test:e2e     # Playwright: every flow at desktop, tablet and phone sizes, checked against the engine
 npm run lint
 ```
 
@@ -41,9 +42,10 @@ The Worker serves https://fire.netf.io (custom domain in `wrangler.jsonc`; the `
 
 ## Accuracy
 
-Two kinds of check, both in `tests/`:
+Three kinds of check:
 
 - **Arithmetic** — accounting invariants over 180 random plans × every year (money in = money out, per account), closed-form references (annuities, amortisation, brute-forced tax solves), property tests (more money never fails earlier; percentiles ordered; failure curve monotone), and an *independent* second implementation of each country's income tax compared on 100,000 random incomes (`tax-independent.test.ts`), pinned to published worked examples. The historical dataset is checked against Damodaran and FRED.
+- **End to end** — `e2e/` drives the real app in Chromium at three screen sizes: first run, every input block, every results tab, sharing by link and file, About, and layout (no sideways scrolling, tooltips and charts on screen). Numbers shown on screen are asserted equal to the engine run in the test process for the same plan — the verdict, the three answers, the outcomes table, year-by-year rows and the opened working, stress verdicts and history — so a wrong figure fails the build.
 - **Rules and thresholds** — every figure each profile uses is listed in `lib/profiles/*.ts` under `sources`, with the primary document, URL and a status. The Method tab renders the list. Every fact is marked **confirmed** against the official document for the stated tax year, or **example** where it is an illustrative default; a test fails if anything ships as unverified. Update `taxYear` and re-check the list every April (UK) and January (US, PL).
 
 ## Feedback
