@@ -29,5 +29,6 @@ jobs:
         run: npm run build
         env:
           SITE_URL: ${{ vars.SITE_URL }}
+          CF_BEACON_TOKEN: ${{ vars.CF_BEACON_TOKEN }}
       - name: Worker dry run
         run: npx wrangler deploy --dry-run

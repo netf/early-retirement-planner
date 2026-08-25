@@ -11,6 +11,11 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    // Inlined at build time so the Worker never depends on runtime environment variables.
+    define: {
+      "process.env.SITE_URL": JSON.stringify(process.env.SITE_URL ?? ""),
+      "process.env.CF_BEACON_TOKEN": JSON.stringify(process.env.CF_BEACON_TOKEN ?? ""),
+    },
     plugins: [
       vinext(),
       cloudflare({ viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] }, inspectorPort: false }),

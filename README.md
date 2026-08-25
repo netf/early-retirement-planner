@@ -31,7 +31,7 @@ npx wrangler login   # once
 npm run deploy       # builds, then `wrangler deploy`
 ```
 
-`npm run deploy:check` does a dry run. On GitHub, every push and pull request runs lint, typecheck, the engine tests, a production build and a Worker dry run (`.github/workflows/ci.yml`); a green CI on `main` triggers the deploy workflow, which needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit) and `CLOUDFLARE_ACCOUNT_ID`, plus the variable `SITE_URL`. The worker is named in `wrangler.jsonc`; set `SITE_URL` at build time (e.g. `SITE_URL=https://early-retirement-planner.<account>.workers.dev npm run deploy`) so link previews resolve.
+`npm run deploy:check` does a dry run. On GitHub, every push and pull request runs lint, typecheck, the engine tests, a production build and a Worker dry run (`.github/workflows/ci.yml`); a green CI on `main` triggers the deploy workflow, which needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit) and `CLOUDFLARE_ACCOUNT_ID`, plus the variables `SITE_URL` and, for Cloudflare Web Analytics, `CF_BEACON_TOKEN` (Analytics & Logs → Web Analytics → Add a site → manual snippet). Worker metrics and logs are on in `wrangler.jsonc` (`observability`). The worker is named in `wrangler.jsonc`; set `SITE_URL` at build time (e.g. `SITE_URL=https://early-retirement-planner.<account>.workers.dev npm run deploy`) so link previews resolve.
 
 ## Layout
 

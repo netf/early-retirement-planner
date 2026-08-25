@@ -30,6 +30,7 @@ export default function AboutPage() {
 
         <h2>Your figures</h2>
         <p>Everything runs in your browser. Nothing you enter is sent to a server, stored remotely, or seen by anyone who built this. The plan is kept in your browser’s local storage so it is there when you come back on the same device; clearing site data removes it.</p>
+        <p>We count visits with Cloudflare Web Analytics, which uses no cookies and records no personal data — how many people visit, from which countries, and how fast the page loads. Your plan is never part of that.</p>
         <p><strong>Links and files are the exception you control.</strong> “Copy link” packs the whole plan into the address itself — anyone you give that link to can open your plan, so treat it like the document it is. “Export” writes the same plan to a file on your computer. Neither passes through a server.</p>
 
         <h2>Accuracy</h2>

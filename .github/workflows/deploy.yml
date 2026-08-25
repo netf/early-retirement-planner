@@ -38,6 +38,7 @@ jobs:
         run: npm run build
         env:
           SITE_URL: ${{ vars.SITE_URL }}
+          CF_BEACON_TOKEN: ${{ vars.CF_BEACON_TOKEN }}
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
