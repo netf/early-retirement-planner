@@ -195,7 +195,15 @@ function coverFromAccessible(amount: number, profile: Jurisdiction, plan: PlanIn
   return amount - remaining;
 }
 
-export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath): Projection {
+export type SimulateOptions = {
+  /** False skips the per-year audit detail (account ledger, income and tax breakdown); the totals, spending flags and balances are unchanged. Used for the thousands of throwaway runs behind the Monte Carlo and solvers. */
+  detail?: boolean;
+};
+
+const NO_TAX_DETAIL: YearDetail["tax"] = { taxableIncome: 0, allowance: 0, incomeTax: 0, taxOnIncome: 0, financeCredit: 0, flatTax: 0, propertyTax: 0, surchargePercent: 0 };
+
+export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, options: SimulateOptions = {}): Projection {
+  const wantDetail = options.detail !== false;
   const profile = profileOf(plan);
   const schedule = taxSchedule(profile, plan.taxVariant);
   const surcharge = plan.taxSurchargePercent;
@@ -491,10 +499,13 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath): Proje
       totalInvestments += balance;
     }
     if (shortfall > 1 && firstShortfall === null) firstShortfall = age;
+    const spendingDetail: YearDetail["spending"] = { planned: plannedSpending, adjustment, oneOffs: oneOffSpending, flexMultiplier, withdrawalRate: withdrawalRate !== null && Number.isFinite(withdrawalRate) ? withdrawalRate : null, anchorRate: flex ? anchorRate : null, atFloor, atCeiling, amortisation };
+    let detail: YearDetail;
+    if (wantDetail) {
     const allowanceNow = Math.max(0, schedule.allowance - (schedule.allowanceTaper && ledger.taxableIncome > schedule.allowanceTaper.from ? (ledger.taxableIncome - schedule.allowanceTaper.from) * schedule.allowanceTaper.rate : 0));
-    const detail: YearDetail = {
-      spending: { planned: plannedSpending, adjustment, oneOffs: oneOffSpending, flexMultiplier, withdrawalRate: withdrawalRate !== null && Number.isFinite(withdrawalRate) ? withdrawalRate : null, anchorRate: flex ? anchorRate : null, atFloor, atCeiling, amortisation },
-      income: incomeDetail,
+      detail = {
+        spending: spendingDetail,
+        income: incomeDetail,
       tax: { taxableIncome: age >= plan.retirementAge ? ledger.taxableIncome : 0, allowance: allowanceNow, incomeTax: age >= plan.retirementAge ? incomeTax(ledger.taxableIncome, schedule, surcharge) : 0, taxOnIncome, financeCredit: credit, flatTax: ledger.flatTax, propertyTax: propertyFlatTax, surchargePercent: surcharge },
       accounts: profile.accounts.map((rule) => {
         const open = opening.get(rule.id) ?? 0;
@@ -505,6 +516,9 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath): Proje
         return { id: rule.id, open, realReturnPercent: returnByAccount.get(rule.id) ?? 0, growth, contribution, inflow: Math.max(0, close - (open + growth + contribution - withdrawal)), withdrawal, taxFree: ledger.taxFreeByAccount.get(rule.id) ?? 0, taxable: ledger.taxableByAccount.get(rule.id) ?? 0, close };
       }),
     };
+    } else {
+      detail = { spending: spendingDetail, income: [], tax: NO_TAX_DETAIL, accounts: [] };
+    }
     years.push({
       age,
       phase: phaseFor(age, plan, accessAge, stateAge),
@@ -514,7 +528,7 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath): Proje
       propertyIncome: propertyCash,
       guaranteedIncome: guaranteed,
       withdrawals: ledger.withdrawals,
-      withdrawalsByAccount: Object.fromEntries(profile.accounts.map((rule) => [rule.id, ledger.withdrawalsByAccount.get(rule.id) ?? 0])),
+      withdrawalsByAccount: wantDetail ? Object.fromEntries(profile.accounts.map((rule) => [rule.id, ledger.withdrawalsByAccount.get(rule.id) ?? 0])) : {},
       contributions,
       surplusSaved,
       saleProceeds,

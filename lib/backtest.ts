@@ -59,7 +59,7 @@ export function runBacktests(plan: PlanInputs): BacktestResult {
   const windows: BacktestWindow[] = [];
   for (let startYear = HISTORY[0]!.year; startYear <= HISTORY_LAST_YEAR - MIN_HISTORICAL_YEARS + 1; startYear += 1) {
     const { path, historicalYears } = historicalPath(plan, startYear);
-    const projection = simulatePlan(plan, path);
+    const projection = simulatePlan(plan, path, { detail: false });
     const retired = projection.years.filter((year) => year.age >= plan.retirementAge);
     windows.push({
       startYear,

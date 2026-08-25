@@ -52,7 +52,9 @@ export function withScaledSpending(plan: PlanInputs, monthlyAmount: number): Pla
   };
 }
 
-function bisect(passes: (value: number) => boolean, low: number, high: number, iterations = 12): { low: number; high: number } {
+/** Bisection to within `step` on a monotone pass/fail boundary; returns the lowest passing value found. */
+function bisect(passes: (value: number) => boolean, low: number, high: number, step: number): { low: number; high: number } {
+  const iterations = Math.ceil(Math.log2(Math.max(2, (high - low) / (step / 2))));
   for (let index = 0; index < iterations; index += 1) {
     const midpoint = (low + high) / 2;
     if (passes(midpoint)) high = midpoint;
@@ -61,39 +63,57 @@ function bisect(passes: (value: number) => boolean, low: number, high: number, i
   return { low, high };
 }
 
-export function calculateGoalMetrics(plan: PlanInputs, successRate: SuccessRate = (candidate) => quickSuccessRate(candidate)): GoalMetrics {
-  const target = plan.targetConfidencePercent;
-  const passes = (candidate: PlanInputs) => successRate(candidate) >= target;
+const passOracle = (successRate: SuccessRate, target: number) => (candidate: PlanInputs) => successRate(candidate) >= target;
 
-  let earliestRetirementAge: number | null = null;
-  for (let age = plan.currentAge; age <= Math.min(plan.planToAge - 1, MAX_RETIREMENT_AGE); age += 1) {
-    if (passes({ ...plan, retirementAge: age })) { earliestRetirementAge = age; break; }
+/** The first stopping age that clears the target, found by bisection: later retirement never makes a plan fail, so pass/fail is a single boundary. */
+export function earliestRetirementAge(plan: PlanInputs, successRate: SuccessRate = (candidate) => quickSuccessRate(candidate)): number | null {
+  const passes = passOracle(successRate, plan.targetConfidencePercent);
+  const maxAge = Math.min(plan.planToAge - 1, MAX_RETIREMENT_AGE);
+  const at = (age: number) => passes({ ...plan, retirementAge: age });
+  if (at(plan.currentAge)) return plan.currentAge;
+  if (maxAge <= plan.currentAge || !at(maxAge)) return null;
+  let low = plan.currentAge, high = maxAge;
+  while (high - low > 1) {
+    const mid = Math.floor((low + high) / 2);
+    if (at(mid)) high = mid; else low = mid;
   }
+  return high;
+}
 
-  let extraMonthlyRequired: number | null;
-  if (passes(plan)) extraMonthlyRequired = 0;
-  else if (passes(withExtraContribution(plan, MAX_EXTRA_MONTHLY))) {
-    const { high } = bisect((extra) => passes(withExtraContribution(plan, extra)), 0, MAX_EXTRA_MONTHLY);
-    extraMonthlyRequired = Math.ceil(high / STEP) * STEP;
-  } else extraMonthlyRequired = null;
-  const split = splitExtraContribution(plan, extraMonthlyRequired ?? 0);
+/** The smallest extra monthly saving that makes the chosen stopping age pass; null when even the maximum would not. */
+export function extraSavingRequired(plan: PlanInputs, successRate: SuccessRate = (candidate) => quickSuccessRate(candidate)): number | null {
+  const passes = passOracle(successRate, plan.targetConfidencePercent);
+  if (passes(plan)) return 0;
+  if (!passes(withExtraContribution(plan, MAX_EXTRA_MONTHLY))) return null;
+  const { high } = bisect((extra) => passes(withExtraContribution(plan, extra)), 0, MAX_EXTRA_MONTHLY, STEP);
+  return Math.ceil(high / STEP) * STEP;
+}
 
+/** The highest starting spending the plan carries at the target; for the amortise rule, the rule's own first-year payment. */
+export function sustainableMonthlySpending(plan: PlanInputs, successRate: SuccessRate = (candidate) => quickSuccessRate(candidate)): number {
   if (plan.spendingStrategy === "amortise") {
-    // The rule sets spending; report the first retirement year's payment instead of solving for a level.
     const first = simulatePlan(plan).years.find((year) => year.age === Math.max(plan.retirementAge, plan.currentAge));
-    return { earliestRetirementAge, extraMonthlyRequired, recommendedBridgeExtra: Math.round(split.bridge / STEP) * STEP, recommendedLongTermExtra: Math.round(split.longTerm / STEP) * STEP, sustainableMonthlySpending: Math.round(((first?.spending ?? 0) - (first?.oneOffSpending ?? 0)) / 12) };
+    return Math.round(((first?.spending ?? 0) - (first?.oneOffSpending ?? 0)) / 12);
   }
+  const passes = passOracle(successRate, plan.targetConfidencePercent);
   const activeSpend = spendingAtAge(plan, plan.retirementAge) / 12;
   let low = 0;
   let high = Math.max(activeSpend * 2, 1_000);
   while (high < 1_000_000 && passes(withScaledSpending(plan, high))) { low = high; high *= 2; }
-  const spendingRange = bisect((amount) => !passes(withScaledSpending(plan, amount)), low, high);
+  const range = bisect((amount) => !passes(withScaledSpending(plan, amount)), low, high, STEP);
+  return Math.floor(range.low / STEP) * STEP;
+}
 
-  return {
-    earliestRetirementAge,
-    extraMonthlyRequired,
-    recommendedBridgeExtra: Math.round(split.bridge / STEP) * STEP,
-    recommendedLongTermExtra: Math.round(split.longTerm / STEP) * STEP,
-    sustainableMonthlySpending: Math.floor(spendingRange.low / STEP) * STEP,
-  };
+/** Assemble the metrics from the three independent solves (they run in parallel in the app). */
+export function assembleGoalMetrics(plan: PlanInputs, parts: { earliestRetirementAge: number | null; extraMonthlyRequired: number | null; sustainableMonthlySpending: number }): GoalMetrics {
+  const split = splitExtraContribution(plan, parts.extraMonthlyRequired ?? 0);
+  return { ...parts, recommendedBridgeExtra: Math.round(split.bridge / STEP) * STEP, recommendedLongTermExtra: Math.round(split.longTerm / STEP) * STEP };
+}
+
+export function calculateGoalMetrics(plan: PlanInputs, successRate: SuccessRate = (candidate) => quickSuccessRate(candidate)): GoalMetrics {
+  return assembleGoalMetrics(plan, {
+    earliestRetirementAge: earliestRetirementAge(plan, successRate),
+    extraMonthlyRequired: extraSavingRequired(plan, successRate),
+    sustainableMonthlySpending: sustainableMonthlySpending(plan, successRate),
+  });
 }

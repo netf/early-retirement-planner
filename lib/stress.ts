@@ -90,7 +90,7 @@ export function runStressTests(plan: PlanInputs): StressTest[] {
   return STRESS_DEFINITIONS.map((definition) => {
     const { key, label, mimics } = definition;
     const years = stressYears(definition, plan);
-    const result = simulatePlan(plan, stressPath(plan, years));
+    const result = simulatePlan(plan, stressPath(plan, years), { detail: false });
     return { key, label, mimics, fromAge, sequence: describeSequence(years), passes: result.firstShortfall === null, endingBalance: result.years.at(-1)?.totalInvestments ?? 0, firstShortfall: result.firstShortfall, centralEnding };
   });
 }

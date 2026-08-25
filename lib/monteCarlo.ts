@@ -84,7 +84,7 @@ export function seedFor(index: number): number {
 export function runMonteCarlo(plan: PlanInputs, pathCount = MONTE_CARLO_PATHS): MonteCarloResult {
   const outcomes: Projection[] = [];
   for (let index = 0; index < pathCount; index += 1) {
-    outcomes.push(simulatePlan(plan, generateMarketPath(plan, seedFor(index))));
+    outcomes.push(simulatePlan(plan, generateMarketPath(plan, seedFor(index)), { detail: false }));
   }
   const ascending = (left: number, right: number) => left - right;
   const successful = outcomes.filter((outcome) => outcome.firstShortfall === null).length;
