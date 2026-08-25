@@ -17,7 +17,7 @@ export default defineConfig(async ({ command }) => {
     // Inlined at build time so the Worker never depends on runtime environment variables.
     define: {
       "process.env.SITE_URL": JSON.stringify(process.env.SITE_URL ?? ""),
-      "process.env.CF_BEACON_TOKEN": JSON.stringify(process.env.CF_BEACON_TOKEN ?? (command === "build" ? PRODUCTION_BEACON_TOKEN : "")),
+      "process.env.CF_BEACON_TOKEN": JSON.stringify(process.env.CF_BEACON_TOKEN || (command === "build" ? PRODUCTION_BEACON_TOKEN : "")),
     },
     plugins: [
       vinext(),
