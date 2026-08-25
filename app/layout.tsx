@@ -13,9 +13,9 @@ export const metadata: Metadata = {
     images: [
       {
         url: "/og.png",
-        width: 1730,
-        height: 909,
-        alt: "Early Retirement Planner — Know when work becomes optional.",
+        width: 2400,
+        height: 1260,
+        alt: "Early Retirement Planner — Will the money last to 95? 57%, Not yet. UK, US and Poland; nothing leaves your browser.",
       },
     ],
   },
