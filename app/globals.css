@@ -112,6 +112,30 @@ h1, h2, h3, h4, p, dl, dd, dt { margin: 0; }
 .stat.good .stat-label::before { background: var(--green); }
 .stat.warn .stat-label::before { background: var(--orange); }
 
+/* ── progress against the baseline ──────────────────────────────────── */
+.track { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; padding: 20px 24px 22px; }
+.track-empty { align-items: center; flex-direction: row; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; }
+.track-empty strong { font-size: 15px; }
+.track-empty .note { margin-top: 4px; }
+.track-head { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 10px 20px; justify-content: space-between; }
+.track-head > strong { font-size: 15px; }
+.track-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.track-body { display: grid; gap: 20px; grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr); }
+.track-plot { position: relative; }
+.track-chart svg { border-bottom: var(--bw) solid var(--ink); border-left: var(--bw) solid var(--ink); display: block; height: 160px; width: 100%; }
+.track-dot { background: var(--ink); border: 2px solid var(--card); border-radius: 50%; height: 12px; position: absolute; transform: translate(-50%, -50%); width: 12px; }
+.track-dot.now { background: var(--yellow); border-color: var(--ink); height: 14px; width: 14px; }
+.track-axis { color: var(--ink-soft); display: flex; font-family: var(--mono); font-size: 12px; font-weight: 600; justify-content: space-between; padding-top: 6px; }
+.track-stats { display: flex; flex-direction: column; gap: 12px; }
+.track-stats .stat { border: 2px solid var(--ink); border-radius: 10px; gap: 4px; padding: 10px 14px; }
+.track-stats .stat-value { font-size: 22px; }
+.track-log { font-size: 13px; }
+.track-log th, .track-log td { padding: 8px 8px 8px 0; }
+.track-log td:first-child { font-family: var(--sans); }
+.track-log td:nth-child(4), .track-log th:nth-child(4) { white-space: nowrap; }
+.track-log td:last-child { width: 32px; }
+.track-log tr:last-child td { border-bottom: 0; }
+
 /* ── age ruler ───────────────────────────────────────────────────────── */
 .ruler-block { margin-top: 24px; padding: 16px 20px 10px; }
 .ruler-wrap { display: flex; flex-direction: column; gap: 0; position: relative; }
@@ -508,6 +532,7 @@ table.mini tr.muted td { color: var(--ink-faint); }
   .ledger { flex-direction: column; }
   .ledger > i { align-self: flex-start; padding-left: 12px; }
   .verdict-main { grid-template-columns: 1fr; }
+  .track-body { grid-template-columns: 1fr; }
   .welcome { padding: 22px 18px; }
   .about-body { padding: 24px 18px; }
   .answers { grid-template-columns: 1fr; gap: 16px; }

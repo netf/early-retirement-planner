@@ -60,6 +60,12 @@ export class Planner {
     return JSON.parse(await this.page.evaluate((key) => localStorage.getItem(key)!, STORAGE_KEY)) as PlanInputs;
   }
 
+  /** The stored plan once it satisfies a condition — for changes that are saved after the debounce. */
+  async storedPlanWhere(predicate: (plan: PlanInputs) => boolean): Promise<PlanInputs> {
+    await expect.poll(async () => predicate(await this.storedPlan()), { timeout: 10_000 }).toBe(true);
+    return this.storedPlan();
+  }
+
   /** Opens an ⓘ tooltip: hover on pointer devices, tap on touch devices — click covers both. */
   async openInfo(icon: Locator) {
     await icon.click();

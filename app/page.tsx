@@ -25,6 +25,7 @@ import { AgeRuler } from "./components/charts";
 import { Info } from "./components/Info";
 import { PlanInputsPanel } from "./components/inputs";
 import { CountryPicker } from "./components/CountryPicker";
+import { Progress } from "./components/Progress";
 import { Welcome } from "./components/Welcome";
 import { MoneyProvider, useMoney } from "./components/money";
 import { YearByYear } from "./components/results/Years";
@@ -178,6 +179,7 @@ export default function Home() {
         <div className={`headline ${pending && result ? "stale" : ""}`} aria-busy={pending}>
           {result ? <Verdict plan={plan} successRate={result.monteCarlo.successRate} floorRate={result.monteCarlo.floorRate} unfunded={result.projection.unfundedPurchases} /> : <VerdictSkeleton plan={plan} />}
           {result?.goals ? <Answers plan={plan} goals={result.goals} /> : null}
+          {result?.goals || plan.baseline ? <Progress plan={plan} result={result} today={today} onChange={setPlan} /> : null}
           {pending && result ? <span className="stale-badge">Recalculating…</span> : null}
         </div>
 

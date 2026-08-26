@@ -24,6 +24,15 @@ export type GuaranteedIncomeInput = { annual: number; fromAge: number };
 /** A workplace, defined-benefit or private pension (or annuity): a fixed amount, in today's money, from a set age, taxed as income. */
 export type PensionIncome = { id: string; name: string; annual: number; fromAge: number };
 
+/** One age of the forecast frozen at baseline time, in the money of that day. */
+export type BaselineYear = { age: number; p10: number; p25: number; median: number; p75: number; p90: number; central: number; /** Money added minus money taken on the central path that year; used to work out realised returns. */ flows: number };
+
+/** The forecast the plan is tracked against: set once, deliberately, when the plan is "the plan". */
+export type Baseline = { setAt: string; age: number; startTotal: number; successRate: number; targetConfidencePercent: number; monthlySpending: number; years: BaselineYear[] };
+
+/** A dated snapshot of the real balances, logged by the user. */
+export type CheckIn = { id: string; date: string; age: number; total: number; balances: Record<string, number> };
+
 /** One row of guaranteed income the engine applies: the state rule plus every pension, on a common shape. */
 export type IncomeStream = { id: string; label: string; annual: number; fromAge: number; taxableShare: number };
 
@@ -106,6 +115,10 @@ export type PlanInputs = {
   guaranteedIncome: Record<string, GuaranteedIncomeInput>;
   /** Any number of pensions beyond the state one, each with its own start age. */
   pensions: PensionIncome[];
+  /** The frozen forecast this plan is tracked against, if the user has set one. */
+  baseline: Baseline | null;
+  /** Real balances logged over time, oldest first. */
+  checkIns: CheckIn[];
   /** Tax-free withdrawal allowance already consumed (UK lump-sum allowance). */
   taxFreeUsed: number;
   portfolio: PortfolioAssumptions;
@@ -197,6 +210,8 @@ export function createDefaultPlan(profileId: ProfileId): PlanInputs {
     accounts: Object.fromEntries(profile.accounts.map((rule) => [rule.id, { ...rule.defaults, ...(rule.accessAge === null ? {} : { accessAge: rule.accessAge }) }])),
     guaranteedIncome: Object.fromEntries(profile.guaranteedIncome.map((rule) => [rule.id, { ...rule.defaults }])),
     pensions: [],
+    baseline: null,
+    checkIns: [],
     taxFreeUsed: 0,
     portfolio: { ...DEFAULT_PORTFOLIO },
     properties: [{ ...createProperty(profile, 1, d.currentAge), id: "property-1", name: "Rental property" }],
@@ -343,6 +358,30 @@ function normalisePension(item: unknown, index: number): PensionIncome {
   return { id: asString(raw.id, `pension-${index + 1}`), name: asString(raw.name, `Pension ${index + 1}`), annual: Math.max(0, asNumber(raw.annual, 0)), fromAge: clamp(asNumber(raw.fromAge, 65), 18, 110) };
 }
 
+const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+/** A baseline is only kept whole: every year must carry every figure, or the plan is treated as untracked. */
+function normaliseBaseline(value: unknown): Baseline | null {
+  const raw = asRecord(value);
+  if (!Array.isArray(raw.years) || raw.years.length === 0 || typeof raw.setAt !== "string" || Number.isNaN(Date.parse(raw.setAt))) return null;
+  const years: BaselineYear[] = [];
+  for (const item of raw.years) {
+    const year = asRecord(item);
+    const keys = ["age", "p10", "p25", "median", "p75", "p90", "central", "flows"] as const;
+    if (!keys.every((key) => isFiniteNumber(year[key]))) return null;
+    years.push(Object.fromEntries(keys.map((key) => [key, year[key] as number])) as BaselineYear);
+  }
+  if (!isFiniteNumber(raw.age) || !isFiniteNumber(raw.startTotal) || !isFiniteNumber(raw.successRate)) return null;
+  return { setAt: raw.setAt, age: raw.age, startTotal: raw.startTotal, successRate: raw.successRate, targetConfidencePercent: asNumber(raw.targetConfidencePercent, 85), monthlySpending: asNumber(raw.monthlySpending, 0), years };
+}
+
+function normaliseCheckIn(item: unknown, index: number): CheckIn | null {
+  const raw = asRecord(item);
+  if (typeof raw.date !== "string" || Number.isNaN(Date.parse(raw.date)) || !isFiniteNumber(raw.total)) return null;
+  const balances = Object.fromEntries(Object.entries(asRecord(raw.balances)).filter((entry): entry is [string, number] => isFiniteNumber(entry[1])));
+  return { id: asString(raw.id, `checkin-${index + 1}`), date: raw.date.slice(0, 10), age: asNumber(raw.age, 0), total: raw.total, balances };
+}
+
 export function createPension(index: number): PensionIncome {
   return { id: newId("pension"), name: index === 1 ? "Workplace pension" : `Pension ${index}`, annual: 6_000, fromAge: 65 };
 }
@@ -424,6 +463,8 @@ export function normalisePlan(input: unknown): PlanInputs {
       return [rule.id, { annual: Math.max(0, asNumber(stored.annual, rule.defaults.annual)), fromAge: asNumber(stored.fromAge, rule.defaults.fromAge) }];
     })),
     pensions: [...legacyPensions(profileId, rawIncome), ...(Array.isArray(raw.pensions) ? raw.pensions.map((item, index) => normalisePension(item, index)) : [])],
+    baseline: normaliseBaseline(raw.baseline),
+    checkIns: Array.isArray(raw.checkIns) ? raw.checkIns.map((item, index) => normaliseCheckIn(item, index)).filter((item): item is CheckIn => item !== null) : [],
     taxFreeUsed: Math.max(0, asNumber(raw.taxFreeUsed, 0)),
     portfolio: Object.fromEntries(
       (Object.keys(DEFAULT_PORTFOLIO) as (keyof PortfolioAssumptions)[]).map((key) => [key, asNumber(rawPortfolio[key], DEFAULT_PORTFOLIO[key])]),
@@ -497,6 +538,8 @@ export function buildStarterPlan(profileId: ProfileId, starter: StarterInputs): 
     oneOffExpenses: [],
     properties: [],
     pensions: [],
+    baseline: null,
+    checkIns: [],
     accounts,
     balancesAsOf: starter.balancesAsOf,
   });
