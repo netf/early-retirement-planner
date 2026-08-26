@@ -14,7 +14,7 @@ test("a v2 UK plan is lifted into the profile model without losing its figures",
   assert.deepEqual(plan.accounts.sipp, { balance: 20_000, monthlyContribution: 200, accessAge: 58 });
   assert.equal(plan.accounts.gia?.balance, 5_000);
   assert.deepEqual(plan.guaranteedIncome.statePension, { annual: 11_000, fromAge: 67 });
-  assert.deepEqual(plan.guaranteedIncome.definedBenefit, { annual: 3_000, fromAge: 66 });
+  assert.deepEqual(plan.pensions.map(({ name, annual, fromAge }) => ({ name, annual, fromAge })), [{ name: "Defined benefit pension", annual: 3_000, fromAge: 66 }], "the old single slot becomes the first pension");
   assert.equal(plan.taxFreeUsed, 5_000);
   assert.equal(plan.portfolio.taxableDragPercent, 0.6);
   assert.equal(pensionAccessAge(plan), 58);

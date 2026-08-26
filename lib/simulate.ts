@@ -1,6 +1,6 @@
 import { expectedPath, mixReturn, planMix, type MarketPath } from "./market.ts";
 import { annuityPayment, presentValue, realRate, solveMonotonic } from "./money.ts";
-import { pensionAccessAge, profileOf, spendingAtAge, statePensionAge, type PlanInputs } from "./plan.ts";
+import { incomeStreams, pensionAccessAge, profileOf, spendingAtAge, statePensionAge, type PlanInputs } from "./plan.ts";
 import { taxSchedule, type AccountRule, type Jurisdiction, type TaxSchedule } from "./profiles/index.ts";
 import { acquisitionCost, completePurchase, growProperty, initialPropertyState, propertyYear, type PropertyState } from "./property.ts";
 import { allowanceRoom, incomeTax, marginalTax } from "./tax.ts";
@@ -212,6 +212,7 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
   const path = suppliedPath ?? expectedPath(plan);
   const accessAge = pensionAccessAge(plan);
   const stateAge = statePensionAge(plan);
+  const streams = incomeStreams(plan);
   const ledger: Ledger = {
     balances: new Map(profile.accounts.map((rule) => [rule.id, Math.max(0, plan.accounts[rule.id]?.balance ?? 0)])),
     taxFreeUsed: Math.max(0, plan.taxFreeUsed),
@@ -363,12 +364,11 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
       plannedSpending = spendingAtAge(plan, age);
 
       let guaranteedTaxable = 0;
-      for (const rule of profile.guaranteedIncome) {
-        const input = plan.guaranteedIncome[rule.id];
-        if (!input || age < input.fromAge) continue;
-        guaranteed += input.annual;
-        guaranteedTaxable += input.annual * rule.taxableShare;
-        if (input.annual > 0) incomeDetail.push({ label: rule.label, cash: input.annual, taxable: input.annual * rule.taxableShare, note: rule.taxableShare < 1 ? `${Math.round(rule.taxableShare * 100)}% taxable` : undefined });
+      for (const stream of streams) {
+        if (age < stream.fromAge) continue;
+        guaranteed += stream.annual;
+        guaranteedTaxable += stream.annual * stream.taxableShare;
+        if (stream.annual > 0) incomeDetail.push({ label: stream.label, cash: stream.annual, taxable: stream.annual * stream.taxableShare, note: stream.taxableShare < 1 ? `${Math.round(stream.taxableShare * 100)}% taxable` : undefined });
       }
       ledger.taxableIncome = propertyTaxable + guaranteedTaxable;
       credit = financeCredit(ledger.taxableIncome);
@@ -392,10 +392,7 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
         for (let future = age + 1; future <= plan.planToAge; future += 1) {
           let gross = 0;
           let taxable = 0;
-          for (const rule of profile.guaranteedIncome) {
-            const input = plan.guaranteedIncome[rule.id];
-            if (input && future >= input.fromAge) { gross += input.annual; taxable += input.annual * rule.taxableShare; }
-          }
+          for (const stream of streams) if (future >= stream.fromAge) { gross += stream.annual; taxable += stream.annual * stream.taxableShare; }
           // Rent is assumed to continue at this year's level; guaranteed income is taxed on top of it.
           const net = gross - incomeTax(taxable + propertyTaxable, schedule, surcharge) + propertyCash;
           futureIncomeValue += presentValue(Math.max(0, net), amortiseRate, future - age);
@@ -417,7 +414,7 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
           for (const barrier of barriers) {
             for (; future < barrier; future += 1) {
               let gross = 0, taxable = 0;
-              for (const rule of profile.guaranteedIncome) { const input = plan.guaranteedIncome[rule.id]; if (input && future >= input.fromAge) { gross += input.annual; taxable += input.annual * rule.taxableShare; } }
+              for (const stream of streams) if (future >= stream.fromAge) { gross += stream.annual; taxable += stream.annual * stream.taxableShare; }
               bridgeIncome += presentValue(Math.max(0, gross - incomeTax(taxable + propertyTaxable, schedule, surcharge) + propertyCash), amortiseRate, future - age);
             }
             grossCap = Math.min(grossCap, Math.max(0, annuityPayment(reachable + bridgeIncome, amortiseRate, barrier - age)));

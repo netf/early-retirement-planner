@@ -120,3 +120,18 @@ test("a property bought in a future year does not grow in the purchase year", ()
   assert.equal(year(plan, 48)?.propertyEquity, 100_000);
   assert.ok(Math.abs((year(plan, 49)?.propertyEquity ?? 0) - 110_000) < 0.01);
 });
+
+test("several pensions start in their own years and are taxed together as income", () => {
+  const plan = ukScenario({ currentAge: 58, retirementAge: 58, planToAge: 66, desiredMonthlySpending: 0, essentialMonthlySpending: 0, portfolio: FLAT_PORTFOLIO, accounts: noAccounts("uk"), guaranteedIncome: noIncome("uk"), properties: [],
+    pensions: [{ id: "nhs", name: "NHS", annual: 9_000, fromAge: 60 }, { id: "old", name: "Old employer", annual: 8_000, fromAge: 65 }] });
+  const years = simulatePlan(plan).years;
+  const at = (age: number) => years.find((year) => year.age === age)!;
+  assert.equal(at(59).guaranteedIncome, 0);
+  assert.equal(at(60).guaranteedIncome, 9_000);
+  assert.equal(at(64).guaranteedIncome, 9_000);
+  assert.equal(at(65).guaranteedIncome, 17_000);
+  assert.deepEqual(at(65).detail.income.map((item) => item.label), ["NHS", "Old employer"]);
+  // 17,000 taxable against the 12,570 allowance at 20%.
+  assert.ok(Math.abs(at(65).tax - (17_000 - 12_570) * 0.2) < 0.01, `${at(65).tax}`);
+  assert.equal(at(64).tax, 0);
+});

@@ -44,7 +44,6 @@ export const UK: Jurisdiction = {
   savingTargets: { bridge: "isa", longTerm: "sipp" },
   guaranteedIncome: [
     { id: "statePension", label: "State Pension", taxableShare: 1, isState: true, defaults: { annual: 12_548, fromAge: 68 } },
-    { id: "definedBenefit", label: "Defined benefit pension", taxableShare: 1, defaults: { annual: 0, fromAge: 65 } },
   ],
   property: { rentalTax: { kind: "income", financeCostCreditRate: 0.2 }, gainTax: { kind: "rate" }, defaultGainRatePercent: 18 },
   notes: [

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import type { AccountInput, GuaranteedIncomeInput, OneOffExpense, PlanInputs, PortfolioAssumptions, PropertyAsset, SpendingPhase } from "../../../lib/planner";
+import type { AccountInput, GuaranteedIncomeInput, OneOffExpense, PensionIncome, PlanInputs, PortfolioAssumptions, PropertyAsset, SpendingPhase } from "../../../lib/planner";
 
 export type SetPlan = Dispatch<SetStateAction<PlanInputs>>;
 
@@ -27,19 +27,20 @@ export function usePlanUpdaters(setPlan: SetPlan) {
     setPlan((current) => ({ ...current, portfolio: { ...current.portfolio, [field]: value } }));
   }, [setPlan]);
 
-  const updateListItem = useCallback(<Key extends "spendingPhases" | "oneOffExpenses" | "properties">(key: Key, id: string, patch: Partial<PlanInputs[Key][number]>) => {
+  const updateListItem = useCallback(<Key extends "spendingPhases" | "oneOffExpenses" | "properties" | "pensions">(key: Key, id: string, patch: Partial<PlanInputs[Key][number]>) => {
     setPlan((current) => ({ ...current, [key]: (current[key] as { id: string }[]).map((item) => item.id === id ? { ...item, ...patch } : item) }));
   }, [setPlan]);
 
-  const removeListItem = useCallback((key: "spendingPhases" | "oneOffExpenses" | "properties", id: string) => {
+  const removeListItem = useCallback((key: "spendingPhases" | "oneOffExpenses" | "properties" | "pensions", id: string) => {
     setPlan((current) => ({ ...current, [key]: (current[key] as { id: string }[]).filter((item) => item.id !== id) }));
   }, [setPlan]);
 
   const updatePhase = useCallback((id: string, patch: Partial<SpendingPhase>) => updateListItem("spendingPhases", id, patch), [updateListItem]);
   const updateOneOff = useCallback((id: string, patch: Partial<OneOffExpense>) => updateListItem("oneOffExpenses", id, patch), [updateListItem]);
   const updateProperty = useCallback((id: string, patch: Partial<PropertyAsset>) => updateListItem("properties", id, patch), [updateListItem]);
+  const updatePension = useCallback((id: string, patch: Partial<PensionIncome>) => updateListItem("pensions", id, patch), [updateListItem]);
 
-  return { update, updateAccount, updateIncome, updatePortfolio, updatePhase, updateOneOff, updateProperty, removeListItem, setPlan };
+  return { update, updateAccount, updateIncome, updatePortfolio, updatePhase, updateOneOff, updateProperty, updatePension, removeListItem, setPlan };
 }
 
 export type PlanUpdaters = ReturnType<typeof usePlanUpdaters>;

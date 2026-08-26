@@ -52,7 +52,6 @@ export const US: Jurisdiction = {
   savingTargets: { bridge: "brokerage", longTerm: "traditional" },
   guaranteedIncome: [
     { id: "socialSecurity", label: "Social Security", taxableShare: 0.85, isState: true, defaults: { annual: 28_000, fromAge: 67 } },
-    { id: "pension", label: "Employer pension", taxableShare: 1, defaults: { annual: 0, fromAge: 65 } },
   ],
   property: { rentalTax: { kind: "income" }, gainTax: { kind: "rate" }, defaultGainRatePercent: 15 },
   notes: [

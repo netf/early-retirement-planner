@@ -28,7 +28,6 @@ export const PL: Jurisdiction = {
   savingTargets: { bridge: "brokerage", longTerm: "ike" },
   guaranteedIncome: [
     { id: "zus", label: "Emerytura ZUS", taxableShare: 1, isState: true, defaults: { annual: 36_000, fromAge: 65 } },
-    { id: "other", label: "Other pension", taxableShare: 1, defaults: { annual: 0, fromAge: 65 } },
   ],
   property: { rentalTax: { kind: "flat-on-gross", threshold: 100_000, lowRate: 0.085, highRate: 0.125 }, gainTax: { kind: "rate-within-years", years: 5 }, defaultGainRatePercent: 19 },
   notes: [

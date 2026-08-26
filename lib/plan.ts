@@ -21,6 +21,12 @@ export type AccountInput = {
 
 export type GuaranteedIncomeInput = { annual: number; fromAge: number };
 
+/** A workplace, defined-benefit or private pension (or annuity): a fixed amount, in today's money, from a set age, taxed as income. */
+export type PensionIncome = { id: string; name: string; annual: number; fromAge: number };
+
+/** One row of guaranteed income the engine applies: the state rule plus every pension, on a common shape. */
+export type IncomeStream = { id: string; label: string; annual: number; fromAge: number; taxableShare: number };
+
 export type SpendingPhase = { id: string; label: string; startAge: number; endAge: number; monthlyAmount: number };
 export type OneOffExpense = { id: string; label: string; age: number; amount: number };
 
@@ -98,6 +104,8 @@ export type PlanInputs = {
   oneOffExpenses: OneOffExpense[];
   accounts: Record<string, AccountInput>;
   guaranteedIncome: Record<string, GuaranteedIncomeInput>;
+  /** Any number of pensions beyond the state one, each with its own start age. */
+  pensions: PensionIncome[];
   /** Tax-free withdrawal allowance already consumed (UK lump-sum allowance). */
   taxFreeUsed: number;
   portfolio: PortfolioAssumptions;
@@ -188,6 +196,7 @@ export function createDefaultPlan(profileId: ProfileId): PlanInputs {
     oneOffExpenses: [],
     accounts: Object.fromEntries(profile.accounts.map((rule) => [rule.id, { ...rule.defaults, ...(rule.accessAge === null ? {} : { accessAge: rule.accessAge }) }])),
     guaranteedIncome: Object.fromEntries(profile.guaranteedIncome.map((rule) => [rule.id, { ...rule.defaults }])),
+    pensions: [],
     taxFreeUsed: 0,
     portfolio: { ...DEFAULT_PORTFOLIO },
     properties: [{ ...createProperty(profile, 1, d.currentAge), id: "property-1", name: "Rental property" }],
@@ -315,6 +324,36 @@ function normaliseProperty(raw: unknown, index: number, profile: Jurisdiction, c
  * Turn anything (stored JSON, an import, a partial object) into a valid plan. Unknown
  * fields are dropped, missing ones take the profile's defaults, corrupt numbers are replaced.
  */
+/** The single non-state slot each profile used to have; a saved amount there becomes the first pension in the list. */
+const LEGACY_PENSION_SLOT: Record<ProfileId, { id: string; name: string }> = {
+  uk: { id: "definedBenefit", name: "Defined benefit pension" },
+  us: { id: "pension", name: "Employer pension" },
+  pl: { id: "other", name: "Other pension" },
+};
+
+function legacyPensions(profileId: ProfileId, rawIncome: UnknownRecord): PensionIncome[] {
+  const slot = LEGACY_PENSION_SLOT[profileId];
+  const stored = asRecord(rawIncome[slot.id]);
+  const annual = asNumber(stored.annual, 0);
+  return annual > 0 ? [{ id: `pension-${slot.id}`, name: slot.name, annual, fromAge: asNumber(stored.fromAge, 65) }] : [];
+}
+
+function normalisePension(item: unknown, index: number): PensionIncome {
+  const raw = asRecord(item);
+  return { id: asString(raw.id, `pension-${index + 1}`), name: asString(raw.name, `Pension ${index + 1}`), annual: Math.max(0, asNumber(raw.annual, 0)), fromAge: clamp(asNumber(raw.fromAge, 65), 18, 110) };
+}
+
+export function createPension(index: number): PensionIncome {
+  return { id: newId("pension"), name: index === 1 ? "Workplace pension" : `Pension ${index}`, annual: 6_000, fromAge: 65 };
+}
+
+/** Every guaranteed income the plan pays: the state rule first, then each pension, all in today's money. */
+export function incomeStreams(plan: PlanInputs): IncomeStream[] {
+  const profile = profileOf(plan);
+  const state = profile.guaranteedIncome.map((rule) => { const input = plan.guaranteedIncome[rule.id]; return { id: rule.id, label: rule.label, annual: input?.annual ?? 0, fromAge: input?.fromAge ?? rule.defaults.fromAge, taxableShare: rule.taxableShare }; });
+  return [...state, ...plan.pensions.map((pension) => ({ id: pension.id, label: pension.name, annual: pension.annual, fromAge: pension.fromAge, taxableShare: 1 }))];
+}
+
 export function normalisePlan(input: unknown): PlanInputs {
   const raw = liftLegacy(asRecord(input));
   const profileId: ProfileId = isProfileId(raw.profile) ? raw.profile : "uk";
@@ -384,6 +423,7 @@ export function normalisePlan(input: unknown): PlanInputs {
       const stored = asRecord(rawIncome[rule.id]);
       return [rule.id, { annual: Math.max(0, asNumber(stored.annual, rule.defaults.annual)), fromAge: asNumber(stored.fromAge, rule.defaults.fromAge) }];
     })),
+    pensions: [...legacyPensions(profileId, rawIncome), ...(Array.isArray(raw.pensions) ? raw.pensions.map((item, index) => normalisePension(item, index)) : [])],
     taxFreeUsed: Math.max(0, asNumber(raw.taxFreeUsed, 0)),
     portfolio: Object.fromEntries(
       (Object.keys(DEFAULT_PORTFOLIO) as (keyof PortfolioAssumptions)[]).map((key) => [key, asNumber(rawPortfolio[key], DEFAULT_PORTFOLIO[key])]),
@@ -456,6 +496,7 @@ export function buildStarterPlan(profileId: ProfileId, starter: StarterInputs): 
     spendingPhases: [],
     oneOffExpenses: [],
     properties: [],
+    pensions: [],
     accounts,
     balancesAsOf: starter.balancesAsOf,
   });

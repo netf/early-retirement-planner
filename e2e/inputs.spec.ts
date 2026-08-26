@@ -80,6 +80,30 @@ test.describe("inputs", () => {
     expect(await planner.percent()).toBe(Math.round(expectedFor(stored).monteCarlo.successRate));
   });
 
+  test("pensions are a list: add two with different start ages, and the engine sees both", async ({ planner, page }) => {
+    const incomeBlock = page.locator(".block").filter({ hasText: "Guaranteed income" });
+    await expect(incomeBlock.locator(".empty")).toContainText("Add each one separately");
+    await incomeBlock.getByRole("button", { name: "+ Add" }).click();
+    await incomeBlock.getByRole("button", { name: "+ Add" }).click();
+    const cards = incomeBlock.locator("details.property");
+    await expect(cards).toHaveCount(2);
+    await cards.nth(0).locator("summary").click();
+    await cards.nth(0).getByRole("textbox", { name: "Name" }).fill("NHS");
+    await cards.nth(0).getByRole("spinbutton", { name: "Amount per year" }).fill("9000");
+    await cards.nth(0).getByRole("spinbutton", { name: "Starts at age" }).fill("60");
+    await cards.nth(1).locator("summary").click();
+    await cards.nth(1).getByRole("spinbutton", { name: "Amount per year" }).fill("8000");
+    await cards.nth(1).getByRole("spinbutton", { name: "Starts at age" }).fill("65");
+    await cards.nth(1).getByRole("spinbutton", { name: "Starts at age" }).press("Tab");
+    await planner.waitSettled();
+    await expect(cards.nth(0).locator("summary")).toContainText("NHS");
+    const stored = await planner.storedPlan();
+    expect(stored.pensions.map((item) => [item.annual, item.fromAge])).toEqual([[9_000, 60], [8_000, 65]]);
+    expect(await planner.percent()).toBe(Math.round(expectedFor(stored).monteCarlo.successRate));
+    await cards.nth(1).getByRole("button", { name: /^Remove/ }).click();
+    await expect(cards).toHaveCount(1);
+  });
+
   test("reset restores the example after confirmation", async ({ planner, page }) => {
     await planner.setNumber("Age now", 45);
     await planner.waitSettled();
