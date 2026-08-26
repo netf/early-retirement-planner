@@ -450,6 +450,10 @@ tr.detail-row > td { white-space: normal; }
 td.total { font-weight: 700; }
 td .zero { color: var(--ink-faint); font-weight: 400; }
 
+.year-summary { background: var(--paper); border: 2px solid var(--ink); border-radius: 8px; color: var(--ink); font-family: var(--sans); font-size: 13px; line-height: 1.5; padding: 8px 12px; }
+.year-summary.bad { background: var(--orange); }
+.year-summary.good { background: var(--green); }
+.year-summary strong { font-weight: 700; }
 /* One year, opened: the three ledger sections are the terms of the equation. */
 /* Pinned to the scroller's visible width so a wide table on a phone does not push the card off-screen. */
 .breakdown { display: flex; flex-direction: column; gap: 16px; left: 0; max-width: calc(100cqw - 28px); position: sticky; }

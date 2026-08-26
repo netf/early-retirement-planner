@@ -106,8 +106,26 @@ export function YearBreakdown({ plan, year }: { plan: PlanInputs; year: YearResu
   const accountName = (id: string) => profile.accounts.find((rule) => rule.id === id)?.name ?? id;
   const withdrawalKind = (id: string) => profile.accounts.find((rule) => rule.id === id)?.withdrawal.kind;
 
+  const market = year.market;
+  const realPercent = market.investedOpen > 0 ? (market.investedGrowth / market.investedOpen) * 100 : 0;
+  const signed = (value: number, digits = 1) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(digits)}%`;
+  const signedMoney = (value: number) => `${value < 0 ? "−" : "+"}${money.compact(Math.abs(value))}`;
+  const tone = year.age === plan.currentAge ? "" : realPercent <= -10 ? "bad" : realPercent >= 10 ? "good" : "";
+
   return (
     <div className="breakdown">
+      <p className={`year-summary ${tone}`}>
+        {year.age === plan.currentAge ? (
+          <>Balances as entered today; growth and spending start next year.</>
+        ) : (
+          <>
+            <b>Markets this year:</b> stocks {signed(market.stockReturnPercent)}{plan.portfolio.bondsPercent > 0 ? <>, bonds {signed(market.bondReturnPercent)}</> : null}, inflation {market.inflationPercent.toFixed(1)}%
+            {market.investedOpen > 0 ? <> → invested money <strong>{signed(realPercent)} in real terms</strong>, {money.compact(market.investedOpen)} → {money.compact(market.investedOpen + market.investedGrowth)} ({signedMoney(market.investedGrowth)})</> : null}
+            {year.contributions > 0.5 ? <>, then {money.compact(year.contributions)} added</> : null}
+            {year.withdrawals > 0.5 ? <>{year.contributions > 0.5 ? " and" : ", then"} {money.compact(year.withdrawals)} drawn</> : null}.
+          </>
+        )}
+      </p>
       <div className="ledger" aria-label="How the year balances">
         <section className="needed">
           <header><small>Needed</small><strong>{money.plain(needed)}</strong></header>

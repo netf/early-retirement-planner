@@ -28,6 +28,8 @@ export type YearResult = {
   purchaseOutlay: number;
   /** Cost of a purchase planned for this year that could not be funded; the plan continues without that property. */
   purchaseShortfall: number;
+  /** The year's market and what it did to invested money: zero in the starting year, which carries the balances as entered. */
+  market: { stockReturnPercent: number; bondReturnPercent: number; inflationPercent: number; investedOpen: number; investedGrowth: number };
   /** Total tax: income tax plus flat taxes plus tax settled inside property income. */
   tax: number;
   /** The part of `tax` already deducted inside `propertyIncome` (flat rental regimes, gains tax on sale). */
@@ -262,6 +264,8 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
     let purchaseShortfall = 0;
 
     // 1. Growth and contributions (none in the starting year).
+    let investedOpen = 0;
+    let investedGrowth = 0;
     if (age > plan.currentAge) {
       priceLevel *= 1 + inflation / 100;
       let investedBefore = 0;
@@ -282,6 +286,8 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
         ledger.balances.set(rule.id, balance * (1 + real) + contribution);
       }
       if (investedBefore > 0) portfolioRealReturn = investedReturn / investedBefore;
+      investedOpen = investedBefore;
+      for (const rule of profile.accounts) if (!rule.isCash) investedGrowth += growthByAccount.get(rule.id) ?? 0;
     }
 
     // 2. Property purchases, growth and amortisation.
@@ -534,6 +540,7 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
       saleProceeds,
       purchaseOutlay,
       purchaseShortfall,
+      market: { stockReturnPercent: age > plan.currentAge ? stockReturn : 0, bondReturnPercent: age > plan.currentAge ? bondReturn : 0, inflationPercent: age > plan.currentAge ? inflation : 0, investedOpen, investedGrowth },
       tax,
       propertyTax: propertyFlatTax,
       spending,

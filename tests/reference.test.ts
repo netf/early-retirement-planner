@@ -190,3 +190,15 @@ test("vacancy shocks scale rental income in the shocked years only", () => {
   assert.equal(years[1]!.propertyIncome, 5_100);
   assert.equal(years[2]!.propertyIncome, 10_200);
 });
+
+test("each year reports the market it saw and what it did to invested money", () => {
+  const plan = ukScenario({ currentAge: 40, retirementAge: 60, planToAge: 42, portfolio: { ...FLAT_PORTFOLIO, stocksPercent: 100 }, accounts: { ...noAccounts("uk"), isa: { balance: 10_000, monthlyContribution: 0 } }, guaranteedIncome: noIncome("uk"), properties: [] });
+  const years = simulatePlan(plan, constantPath(plan, 8, 2)).years;
+  assert.deepEqual(years[0]!.market, { stockReturnPercent: 0, bondReturnPercent: 0, inflationPercent: 0, investedOpen: 0, investedGrowth: 0 }, "the starting year carries balances as entered");
+  const year = years[1]!;
+  assert.equal(year.market.stockReturnPercent, 8);
+  assert.equal(year.market.inflationPercent, 2);
+  assert.equal(year.market.investedOpen, 10_000);
+  close(year.market.investedGrowth, 10_000 * (1.08 / 1.02 - 1));
+  close(year.market.investedGrowth, year.detail.accounts.filter((account) => account.id !== "cash").reduce((sum, account) => sum + account.growth, 0));
+});

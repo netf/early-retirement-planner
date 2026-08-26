@@ -31,6 +31,9 @@ test.describe("results tabs reproduce the engine", () => {
     await rows.nth(12).click();
     const ledger = page.locator(".ledger");
     await expect(ledger).toBeVisible();
+    const summary = page.locator(".year-summary");
+    await expect(summary).toContainText("Markets this year");
+    await expect(summary).toContainText(`${money.compact(projection.years[12]!.market.investedOpen)} →`);
     const needed = digits(await ledger.locator("section.needed header strong").innerText());
     const income = digits(await ledger.locator("section.income header strong").innerText());
     const drawn = digits(await ledger.locator("section.drawn header strong").innerText());
