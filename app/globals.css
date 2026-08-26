@@ -163,6 +163,13 @@ h1, h2, h3, h4, p, dl, dd, dt { margin: 0; }
 .track-pill.ahead { background: var(--green); }
 .track-pill.on { background: var(--yellow); }
 .track-pill.behind { background: var(--orange); }
+.save-nudge { align-items: center; border: var(--bw) solid var(--ink); border-radius: 10px; display: flex; flex-wrap: wrap; gap: 10px 20px; justify-content: space-between; padding: 12px 16px; }
+.save-nudge.due { background: var(--yellow); }
+.save-nudge.ok { background: var(--card); }
+.save-nudge strong { display: block; font-size: 14px; }
+.save-nudge p { color: var(--ink-soft); font-size: 13px; line-height: 1.45; margin: 3px 0 0; max-width: 62ch; }
+.save-nudge.due p { color: var(--ink); }
+.save-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .track-foot { border-top: 1.5px dashed var(--rule-soft); display: flex; gap: 10px; justify-content: flex-end; padding-top: 10px; }
 
 /* ── age ruler ───────────────────────────────────────────────────────── */

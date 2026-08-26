@@ -1,6 +1,6 @@
 "use client";
 
-import { captureBaseline, checkInNow, totalCurrentInvestments, trackProgress, type CheckIn, type PlanInputs, type Progress as ProgressData } from "../../lib/planner";
+import { captureBaseline, checkInNow, hasUnsavedData, totalCurrentInvestments, trackProgress, type CheckIn, type PlanInputs, type Progress as ProgressData } from "../../lib/planner";
 import type { Analysis } from "../analysis/analyse";
 import { Info } from "./Info";
 import { useMoney } from "./money";
@@ -20,7 +20,7 @@ const STANDING_WORD: Record<Standing, string> = { ahead: "Ahead of plan", on: "O
  * The plan versus reality, answered at a glance: a verdict word, a gauge of where today's pot sits in the
  * range the plan expected by now, two supporting facts, and — once there is history — the trend.
  */
-export function Progress({ plan, result, today, onChange }: { plan: PlanInputs; result: Analysis | null; today: number | null; onChange: (plan: PlanInputs) => void }) {
+export function Progress({ plan, result, today, onChange, onCopyLink, onExport, linkState }: { plan: PlanInputs; result: Analysis | null; today: number | null; onChange: (plan: PlanInputs) => void; onCopyLink: () => void; onExport: () => void; linkState: "idle" | "copied" | "failed" }) {
   const money = useMoney();
   const baseline = plan.baseline;
   const todayIso = today === null ? null : new Date(today).toISOString().slice(0, 10);
@@ -32,7 +32,7 @@ export function Progress({ plan, result, today, onChange }: { plan: PlanInputs; 
           <strong>Track this plan against what actually happens<Info title="Baseline"><span>Set a baseline and the planner freezes today’s forecast: the range it expects your pot to be in at every future age. Each time you enter real balances, it shows whether you are ahead of or behind that plan — which is a different question from whether the plan still works from here.</span><em>Example: two years on, “Ahead of plan · 62nd percentile” means markets have been a little kinder than the plan assumed. Set it when the plan is the plan, and re-set it only on purpose.</em></Info></strong>
           <p className="note">Freeze today’s forecast, then update your balances each year to see how you are doing against it.</p>
         </div>
-        <button type="button" className="button primary" disabled={!result || todayIso === null} onClick={() => { if (result && todayIso) onChange({ ...plan, baseline: captureBaseline(plan, result.monteCarlo, result.projection, todayIso), checkIns: [] }); }}>Set baseline</button>
+        <button type="button" className="button primary" disabled={!result || todayIso === null} onClick={() => { if (result && todayIso) onChange({ ...plan, baseline: captureBaseline(plan, result.monteCarlo, result.projection, todayIso), checkIns: [], changedAt: new Date().toISOString() }); }}>Set baseline</button>
       </section>
     );
   }
@@ -65,8 +65,8 @@ export function Progress({ plan, result, today, onChange }: { plan: PlanInputs; 
   const dot = (progress: ProgressData) => ({ left: `${(x(progress.age) / WIDTH) * 100}%`, top: `${(y(progress.actualReal) / HEIGHT) * 100}%` });
   const trail = [...logged.map((item) => item.progress), ...(now ? [now] : [])].sort((left, right) => left.age - right.age);
 
-  const checkInToday = () => { if (todayIso) onChange({ ...plan, checkIns: [...plan.checkIns.filter((item) => item.date !== todayIso), checkInNow(plan, todayIso)] }); };
-  const rebaseline = () => { if (result && todayIso && window.confirm("Replace the baseline with today’s forecast? Only do this when the plan itself has changed — a bad year is not a reason. Logged check-ins are cleared.")) onChange({ ...plan, baseline: captureBaseline(plan, result.monteCarlo, result.projection, todayIso), checkIns: [] }); };
+  const checkInToday = () => { if (todayIso) onChange({ ...plan, checkIns: [...plan.checkIns.filter((item) => item.date !== todayIso), checkInNow(plan, todayIso)], changedAt: new Date().toISOString() }); };
+  const rebaseline = () => { if (result && todayIso && window.confirm("Replace the baseline with today’s forecast? Only do this when the plan itself has changed — a bad year is not a reason. Logged check-ins are cleared.")) onChange({ ...plan, baseline: captureBaseline(plan, result.monteCarlo, result.projection, todayIso), checkIns: [], changedAt: new Date().toISOString() }); };
   const stop = () => { if (window.confirm("Stop tracking? The baseline and the check-ins are removed from this plan.")) onChange({ ...plan, baseline: null, checkIns: [] }); };
   const loggedToday = todayIso !== null && plan.checkIns.some((item) => item.date === todayIso);
 
@@ -141,10 +141,33 @@ export function Progress({ plan, result, today, onChange }: { plan: PlanInputs; 
         </div>
       ) : null}
 
+      <SaveNudge plan={plan} onCopyLink={onCopyLink} onExport={onExport} linkState={linkState} />
+
       <div className="track-foot">
         <button type="button" className="add" onClick={rebaseline} disabled={!result}>Re-baseline</button>
         <button type="button" className="add" onClick={stop}>Stop tracking</button>
       </div>
     </section>
+  );
+}
+
+/**
+ * The plan lives only in this browser until a copy leaves it. Once there is a baseline the data is
+ * irreplaceable, so the card asks for a save whenever something worth keeping has happened since the last one.
+ */
+function SaveNudge({ plan, onCopyLink, onExport, linkState }: { plan: PlanInputs; onCopyLink: () => void; onExport: () => void; linkState: "idle" | "copied" | "failed" }) {
+  const unsaved = hasUnsavedData(plan);
+  const savedOn = plan.savedAt ? formatDay(plan.savedAt.slice(0, 10)) : null;
+  return (
+    <div className={`save-nudge ${unsaved ? "due" : "ok"}`} role="status">
+      <div>
+        <strong>{unsaved ? (savedOn ? `Not saved since ${savedOn} — there is newer data here` : "Save this plan — it lives only in this browser") : `Saved ${savedOn}`}</strong>
+        <p>{linkState === "copied" ? "Link copied. Paste it into your password manager as a secure note — that copy survives new laptops and browsers." : linkState === "failed" ? "Could not reach the clipboard — download the file instead." : "Keep the link as a secure note in your password manager, or download the file. Nothing is stored anywhere else."}</p>
+      </div>
+      <div className="save-actions">
+        <button type="button" className={`button ${unsaved ? "primary" : ""}`} onClick={onCopyLink}>Copy link</button>
+        <button type="button" className="button" onClick={onExport}>Download file</button>
+      </div>
+    </div>
   );
 }

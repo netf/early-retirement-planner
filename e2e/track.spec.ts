@@ -16,6 +16,16 @@ test.describe("tracking a plan against reality", () => {
     await expect(card).toContainText("Against the plan you set in");
     await expect(card.locator(".track-word")).toContainText("Baseline set today");
     await expect(card.locator(".gauge")).toHaveCount(0);
+    // Irreplaceable data now exists and no copy has left the browser: the card asks for a save.
+    const nudge = card.locator(".save-nudge");
+    await expect(nudge).toHaveClass(/due/);
+    await expect(nudge).toContainText("Save this plan");
+    await nudge.getByRole("button", { name: "Copy link" }).click();
+    await expect(nudge).toHaveClass(/ok/);
+    await expect(nudge).toContainText("password manager");
+    const savedPlan = await planner.storedPlanWhere((plan) => plan.savedAt !== null);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("#plan=");
+    expect(savedPlan.savedAt!.slice(0, 10)).toBe(new Date().toISOString().slice(0, 10));
     let stored = await planner.storedPlanWhere((plan) => plan.baseline !== null);
     const expected = expectedFor(stored);
     expect(stored.baseline!.years.length).toBe(stored.planToAge - stored.currentAge + 1);
@@ -48,6 +58,7 @@ test.describe("tracking a plan against reality", () => {
 
     await card.getByRole("button", { name: "Check in", exact: true }).click();
     await expect(card.getByRole("button", { name: "Checked in today" })).toBeDisabled();
+    await expect(card.locator(".save-nudge")).toHaveClass(/due/);
     await expect(card.locator(".track-log li")).toHaveCount(1);
     await expect(card.locator(".track-log li .track-pill")).toContainText(ordinal(progress.percentile));
     await expect(card.locator(".track-dot")).toHaveCount(2);
@@ -69,7 +80,7 @@ test.describe("tracking a plan against reality", () => {
     await planner.exploreExample();
     await page.locator(".track-empty").getByRole("button", { name: "Set baseline" }).click();
     await expect(page.locator(".track")).toContainText("Against the plan you set in");
-    await page.getByRole("button", { name: "Copy link" }).click();
+    await page.locator(".masthead").getByRole("button", { name: "Copy link" }).click();
     await expect(planner.status).toContainText("Link copied");
     const link = await page.evaluate(() => navigator.clipboard.readText());
     const context = await browser.newContext();

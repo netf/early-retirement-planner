@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { captureBaseline, checkInNow, createDefaultPlan, expectedAt, normalisePlan, percentileOf, runMonteCarlo, simulatePlan, totalCurrentInvestments, trackProgress, yearsBetween, type Baseline, type BaselineYear } from "../lib/planner.ts";
+import { captureBaseline, checkInNow, createDefaultPlan, expectedAt, hasUnsavedData, normalisePlan, percentileOf, runMonteCarlo, simulatePlan, totalCurrentInvestments, trackProgress, yearsBetween, type Baseline, type BaselineYear } from "../lib/planner.ts";
 import { ukScenario } from "./helpers.ts";
 
 const flat = (age: number, value: number): BaselineYear => ({ age, p10: value * 0.7, p25: value * 0.85, median: value, p75: value * 1.15, p90: value * 1.4, central: value * 1.05, flows: 0 });
@@ -70,4 +70,15 @@ test("check-ins snapshot the balances and survive normalisation; junk entries ar
   assert.equal(normalised.checkIns.length, 1);
   assert.equal(yearsBetween("2026-01-01", "2027-01-01") > 0.99 && yearsBetween("2026-01-01", "2027-01-01") < 1.01, true);
   assert.equal(yearsBetween("2027-01-01", "2026-01-01"), 0, "never negative");
+});
+
+test("the plan knows whether a copy has left the browser since its newest data", () => {
+  const plan = { ...ukScenario(), baseline: null, checkIns: [], savedAt: null, changedAt: "2027-03-01T10:00:00Z" };
+  assert.equal(hasUnsavedData(plan), false, "untracked plans are not nagged");
+  const tracked = { ...plan, baseline: { setAt: "2027-03-01", age: 46, startTotal: 1, successRate: 80, targetConfidencePercent: 85, monthlySpending: 0, years: [] } };
+  assert.equal(hasUnsavedData(tracked), true, "a baseline that was never saved");
+  assert.equal(hasUnsavedData({ ...tracked, savedAt: "2027-03-01T18:00:00Z" }), false, "saved after the change");
+  assert.equal(hasUnsavedData({ ...tracked, savedAt: "2027-03-01T18:00:00Z", changedAt: "2027-03-01T18:05:00Z" }), true, "changed five minutes after the save");
+  assert.equal(normalisePlan({ ...tracked, savedAt: "garbage", changedAt: "also garbage" }).savedAt, null);
+  assert.equal(normalisePlan({ ...tracked, savedAt: "garbage" }).changedAt, "2027-03-01T10:00:00Z");
 });

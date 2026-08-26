@@ -119,6 +119,10 @@ export type PlanInputs = {
   baseline: Baseline | null;
   /** Real balances logged over time, oldest first. */
   checkIns: CheckIn[];
+  /** When the user last copied a link or exported a file — the only copies that outlive this browser. */
+  savedAt: string | null;
+  /** When data worth keeping last changed: a baseline set, a check-in logged, balances entered. */
+  changedAt: string | null;
   /** Tax-free withdrawal allowance already consumed (UK lump-sum allowance). */
   taxFreeUsed: number;
   portfolio: PortfolioAssumptions;
@@ -212,6 +216,8 @@ export function createDefaultPlan(profileId: ProfileId): PlanInputs {
     pensions: [],
     baseline: null,
     checkIns: [],
+    savedAt: null,
+    changedAt: null,
     taxFreeUsed: 0,
     portfolio: { ...DEFAULT_PORTFOLIO },
     properties: [{ ...createProperty(profile, 1, d.currentAge), id: "property-1", name: "Rental property" }],
@@ -464,6 +470,8 @@ export function normalisePlan(input: unknown): PlanInputs {
     })),
     pensions: [...legacyPensions(profileId, rawIncome), ...(Array.isArray(raw.pensions) ? raw.pensions.map((item, index) => normalisePension(item, index)) : [])],
     baseline: normaliseBaseline(raw.baseline),
+    savedAt: typeof raw.savedAt === "string" && !Number.isNaN(Date.parse(raw.savedAt)) ? raw.savedAt : null,
+    changedAt: typeof raw.changedAt === "string" && !Number.isNaN(Date.parse(raw.changedAt)) ? raw.changedAt : null,
     checkIns: Array.isArray(raw.checkIns) ? raw.checkIns.map((item, index) => normaliseCheckIn(item, index)).filter((item): item is CheckIn => item !== null) : [],
     taxFreeUsed: Math.max(0, asNumber(raw.taxFreeUsed, 0)),
     portfolio: Object.fromEntries(
@@ -540,7 +548,15 @@ export function buildStarterPlan(profileId: ProfileId, starter: StarterInputs): 
     pensions: [],
     baseline: null,
     checkIns: [],
+    savedAt: null,
+    changedAt: starter.balancesAsOf,
     accounts,
     balancesAsOf: starter.balancesAsOf,
   });
+}
+
+/** True when data worth keeping changed after the last copy left this browser. Only meaningful once the plan is tracked. */
+export function hasUnsavedData(plan: PlanInputs): boolean {
+  if (plan.baseline === null || plan.changedAt === null) return false;
+  return plan.savedAt === null || plan.changedAt > plan.savedAt;
 }

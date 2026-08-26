@@ -14,8 +14,9 @@ export function usePlanUpdaters(setPlan: SetPlan) {
   const updateAccount = useCallback((id: string, patch: Partial<AccountInput>) => {
     setPlan((current) => {
       const next: AccountInput = { ...current.accounts[id]!, ...patch };
-      const balancesAsOf = "balance" in patch ? new Date().toISOString().slice(0, 10) : current.balancesAsOf;
-      return { ...current, balancesAsOf, accounts: { ...current.accounts, [id]: next } };
+      const now = new Date().toISOString();
+      const balancesAsOf = "balance" in patch ? now.slice(0, 10) : current.balancesAsOf;
+      return { ...current, balancesAsOf, changedAt: "balance" in patch ? now : current.changedAt, accounts: { ...current.accounts, [id]: next } };
     });
   }, [setPlan]);
 

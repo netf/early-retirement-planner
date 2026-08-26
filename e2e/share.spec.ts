@@ -10,7 +10,7 @@ test.describe("sharing a plan", () => {
     await planner.setNumber("Stop work at", 53);
     await planner.waitSettled();
     const stored = await planner.storedPlan();
-    await page.getByRole("button", { name: "Copy link" }).click();
+    await page.locator(".masthead").getByRole("button", { name: "Copy link" }).click();
     await expect(planner.status).toContainText("Link copied");
     const link = await page.evaluate(() => navigator.clipboard.readText());
     expect(link).toMatch(/#plan=z\./);
@@ -45,7 +45,9 @@ test.describe("sharing a plan", () => {
     const file = await (await download).path();
     const exported = JSON.parse(await readFile(file!, "utf8")) as { exportedAt: string; modelVersion: number; plan: unknown };
     expect(exported.modelVersion).toBe(3);
-    expect(normalisePlan(exported.plan)).toEqual(normalisePlan(stored));
+    // The export stamps savedAt on its way out; everything else must match what the page held.
+    expect({ ...normalisePlan(exported.plan), savedAt: null }).toEqual({ ...normalisePlan(stored), savedAt: null });
+    expect(exported.exportedAt).toBe(normalisePlan(exported.plan).savedAt);
 
     const messages: string[] = [];
     page.on("dialog", (dialog) => { messages.push(dialog.message()); void dialog.dismiss(); });

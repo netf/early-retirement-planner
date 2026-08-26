@@ -113,15 +113,23 @@ export default function Home() {
     return list;
   }, [plan, result, today]);
 
+  /** A copy is leaving the browser: stamp the plan so the copy — and this browser — know when it was last kept safe. */
+  const stampSaved = useCallback((): PlanInputs => {
+    const stamped = { ...plan, savedAt: new Date().toISOString() };
+    setPlan(stamped);
+    return stamped;
+  }, [plan]);
+
   const exportPlan = useCallback(() => {
-    const payload = JSON.stringify({ exportedAt: new Date().toISOString(), modelVersion: 3, plan }, null, 2);
+    const stamped = stampSaved();
+    const payload = JSON.stringify({ exportedAt: stamped.savedAt, modelVersion: 3, plan: stamped }, null, 2);
     const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = "retirement-plan.json";
     anchor.click();
     URL.revokeObjectURL(url);
-  }, [plan]);
+  }, [stampSaved]);
 
   const importPlan = useCallback((file: File | undefined) => {
     if (!file) return;
@@ -137,12 +145,12 @@ export default function Home() {
   }, []);
 
   const copyLink = useCallback(() => {
-    encodePlanLink(plan)
+    encodePlanLink(stampSaved())
       .then((fragment) => navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#${fragment}`))
       .then(() => setLinkState("copied"))
       .catch(() => setLinkState("failed"))
       .finally(() => window.setTimeout(() => setLinkState("idle"), 3_000));
-  }, [plan]);
+  }, [stampSaved]);
 
   const changeProfile = useCallback((profileId: ProfileId) => {
     if (profileId === plan.profile) return;
@@ -179,7 +187,7 @@ export default function Home() {
         <div className={`headline ${pending && result ? "stale" : ""}`} aria-busy={pending}>
           {result ? <Verdict plan={plan} successRate={result.monteCarlo.successRate} floorRate={result.monteCarlo.floorRate} unfunded={result.projection.unfundedPurchases} /> : <VerdictSkeleton plan={plan} />}
           {result?.goals ? <Answers plan={plan} goals={result.goals} /> : null}
-          {result?.goals || plan.baseline ? <Progress plan={plan} result={result} today={today} onChange={setPlan} /> : null}
+          {result?.goals || plan.baseline ? <Progress plan={plan} result={result} today={today} onChange={setPlan} onCopyLink={copyLink} onExport={exportPlan} linkState={linkState} /> : null}
           {pending && result ? <span className="stale-badge">Recalculating…</span> : null}
         </div>
 

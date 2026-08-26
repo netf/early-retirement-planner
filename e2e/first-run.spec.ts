@@ -6,7 +6,7 @@ test.describe("first run", () => {
   test("a new visitor gets the six-number start, builds a plan, and finds it again on return", async ({ planner, page }) => {
     await planner.openFresh();
     await expect(planner.welcome.getByRole("spinbutton")).toHaveCount(6);
-    await expect(page.getByRole("button", { name: "Copy link" })).toBeDisabled();
+    await expect(page.locator(".masthead").getByRole("button", { name: "Copy link" })).toBeDisabled();
 
     await planner.buildStarter();
     await expect(planner.welcome).toHaveCount(0);
