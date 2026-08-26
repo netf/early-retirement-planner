@@ -19,6 +19,17 @@ function useAgeScale(plan: PlanInputs) {
  */
 export function AgeRuler({ plan }: { plan: PlanInputs }) {
   const x = useAgeScale(plan);
+  // Each extra pension is a marker above the bar at the age it starts; near neighbours alternate rows so labels never overlap.
+  const marks = plan.pensions
+    .filter((pension) => pension.annual > 0 && pension.fromAge <= plan.planToAge)
+    .map((pension) => ({ id: pension.id, label: pension.name, age: Math.max(plan.currentAge, pension.fromAge), paying: pension.fromAge <= plan.currentAge }))
+    .sort((left, right) => left.age - right.age)
+    .reduce<{ id: string; label: string; age: number; paying: boolean; row: number }[]>((placed, mark) => {
+      const previous = placed.at(-1);
+      const crowded = previous !== undefined && x(mark.age) - x(previous.age) < WIDTH * 0.14;
+      placed.push({ ...mark, row: crowded ? (previous.row + 1) % 2 : 0 });
+      return placed;
+    }, []);
   const accessAge = pensionAccessAge(plan);
   const stateAge = statePensionAge(plan);
   const stateLabel = stateIncomeRule(profileOf(plan)).label;
@@ -33,6 +44,15 @@ export function AgeRuler({ plan }: { plan: PlanInputs }) {
     .sort((left, right) => left - right);
 
   return (
+    <>
+      {marks.length > 0 ? (
+        <div className={`ruler-marks ${marks.some((mark) => mark.row === 1) ? "two-rows" : ""}`} aria-label="Pensions starting">
+          {marks.map((mark) => {
+            const left = (x(mark.age) / WIDTH) * 100;
+            return <span key={mark.id} className={`ruler-mark row-${mark.row} ${left < 8 ? "at-start" : left > 92 ? "at-end" : ""}`} style={{ left: `${left}%` }}><b>{mark.label}</b> {mark.paying ? "paying" : mark.age}</span>;
+          })}
+        </div>
+      ) : null}
     <div className="ruler-wrap">
       <svg className="ruler" viewBox={`0 0 ${WIDTH} 44`} preserveAspectRatio="none" role="img" aria-label={`Plan phases from age ${plan.currentAge} to ${plan.planToAge}`}>
         <defs>
@@ -50,6 +70,7 @@ export function AgeRuler({ plan }: { plan: PlanInputs }) {
         {ticks.map((age) => <span key={age} style={{ left: `${(x(age) / WIDTH) * 100}%` }} className={age === plan.planToAge ? "end" : ""}>{age}</span>)}
       </div>
     </div>
+    </>
   );
 }
 

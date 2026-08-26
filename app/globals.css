@@ -130,6 +130,19 @@ h1, h2, h3, h4, p, dl, dd, dt { margin: 0; }
 .ruler-text.bridge { color: transparent; }
 .ruler-text.bridge::before { color: var(--ink); }
 .ruler-ages { height: 24px; position: relative; }
+/* pensions above the bar: a chip at the age each one starts, with a tick down to the bar */
+.ruler-marks { height: 34px; position: relative; }
+.ruler-marks.two-rows { height: 60px; }
+.ruler-mark { background: var(--lilac); border: 2px solid var(--ink); border-radius: 6px; bottom: 10px; font-family: var(--sans); font-size: 11px; font-weight: 500; line-height: 1; padding: 4px 7px; position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.ruler-mark b { font-weight: 700; }
+.ruler-mark::after { background: var(--ink); bottom: -12px; content: ""; height: 10px; left: 50%; position: absolute; transform: translateX(-1px); width: 2px; }
+.ruler-mark.row-0 { z-index: 2; }
+.ruler-mark.row-1 { bottom: 36px; z-index: 1; }
+.ruler-mark.row-1::after { bottom: -38px; height: 36px; }
+.ruler-mark.at-start { transform: none; }
+.ruler-mark.at-start::after { left: 6px; }
+.ruler-mark.at-end { transform: translateX(-100%); }
+.ruler-mark.at-end::after { left: auto; right: 6px; }
 .ruler-ages span { font-size: 12px; font-weight: 600; padding-left: 4px; position: absolute; top: 6px; }
 .ruler-ages span.end { padding-left: 0; transform: translateX(-100%); }
 

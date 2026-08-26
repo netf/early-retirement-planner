@@ -100,8 +100,12 @@ test.describe("inputs", () => {
     const stored = await planner.storedPlan();
     expect(stored.pensions.map((item) => [item.annual, item.fromAge])).toEqual([[9_000, 60], [8_000, 65]]);
     expect(await planner.percent()).toBe(Math.round(expectedFor(stored).monteCarlo.successRate));
+    const marks = page.locator(".ruler-mark");
+    await expect(marks).toHaveCount(2);
+    await expect(marks.nth(0)).toHaveText("NHS 60");
     await cards.nth(1).getByRole("button", { name: /^Remove/ }).click();
     await expect(cards).toHaveCount(1);
+    await expect(marks).toHaveCount(1);
   });
 
   test("reset restores the example after confirmation", async ({ planner, page }) => {
