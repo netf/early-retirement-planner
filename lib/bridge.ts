@@ -1,4 +1,4 @@
-import { pensionAccessAge, profileOf, type PlanInputs } from "./plan.ts";
+import { pensionAccessAge, profileOf, transferBetweenTypes, type PlanInputs } from "./plan.ts";
 import { simulatePlan } from "./simulate.ts";
 
 /**
@@ -60,13 +60,12 @@ export function withBridgeReserve(plan: PlanInputs, years: number, annualSpendin
     .filter((rule) => !rule.isCash && rule.accessAge === null && (plan.accounts[rule.id]?.balance ?? 0) > 0);
   if (!cashRule || sources.length === 0) return plan;
   let toMove = Math.max(0, annualSpending * years - (plan.accounts[cashRule.id]?.balance ?? 0));
-  const accounts = { ...plan.accounts };
+  let next = plan;
   for (const rule of sources) {
     if (toMove <= 0) break;
-    const moved = Math.min(toMove, accounts[rule.id]!.balance);
-    accounts[rule.id] = { ...accounts[rule.id]!, balance: accounts[rule.id]!.balance - moved };
-    accounts[cashRule.id] = { ...accounts[cashRule.id]!, balance: accounts[cashRule.id]!.balance + moved };
+    const moved = Math.min(toMove, next.accounts[rule.id]!.balance);
+    next = transferBetweenTypes(next, rule.id, cashRule.id, moved);
     toMove -= moved;
   }
-  return { ...plan, accounts };
+  return next;
 }

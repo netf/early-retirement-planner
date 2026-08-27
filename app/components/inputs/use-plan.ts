@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import type { AccountInput, GuaranteedIncomeInput, OneOffExpense, PensionIncome, PlanInputs, PortfolioAssumptions, PropertyAsset, SpendingPhase } from "../../../lib/planner";
+import { createPot, profileOf, withPots, type GuaranteedIncomeInput, type OneOffExpense, type PensionIncome, type PlanInputs, type PortfolioAssumptions, type Pot, type PropertyAsset, type SpendingPhase } from "../../../lib/planner";
 
 export type SetPlan = Dispatch<SetStateAction<PlanInputs>>;
 
@@ -11,13 +11,26 @@ export function usePlanUpdaters(setPlan: SetPlan) {
     setPlan((current) => ({ ...current, [key]: value }));
   }, [setPlan]);
 
-  const updateAccount = useCallback((id: string, patch: Partial<AccountInput>) => {
+  /** Edit one pot; the per-type accounts follow. A balance edit also dates the balances and marks the plan changed. */
+  const updatePot = useCallback((id: string, patch: Partial<Pot>) => {
     setPlan((current) => {
-      const next: AccountInput = { ...current.accounts[id]!, ...patch };
       const now = new Date().toISOString();
-      const balancesAsOf = "balance" in patch ? now.slice(0, 10) : current.balancesAsOf;
-      return { ...current, balancesAsOf, changedAt: "balance" in patch ? now : current.changedAt, accounts: { ...current.accounts, [id]: next } };
+      const next = withPots(current, current.pots.map((pot) => pot.id === id ? { ...pot, ...patch } : pot));
+      return "balance" in patch ? { ...next, balancesAsOf: now.slice(0, 10), changedAt: now } : next;
     });
+  }, [setPlan]);
+
+  const addPot = useCallback((type: string) => {
+    setPlan((current) => withPots(current, [...current.pots, createPot(profileOf(current), type, current.pots)]));
+  }, [setPlan]);
+
+  const removePot = useCallback((id: string) => {
+    setPlan((current) => withPots(current, current.pots.filter((pot) => pot.id !== id)));
+  }, [setPlan]);
+
+  /** Type-level setting: when a locked type opens. */
+  const updateAccessAge = useCallback((type: string, accessAge: number) => {
+    setPlan((current) => ({ ...current, accounts: { ...current.accounts, [type]: { ...current.accounts[type]!, accessAge } } }));
   }, [setPlan]);
 
   const updateIncome = useCallback((id: string, patch: Partial<GuaranteedIncomeInput>) => {
@@ -41,7 +54,7 @@ export function usePlanUpdaters(setPlan: SetPlan) {
   const updateProperty = useCallback((id: string, patch: Partial<PropertyAsset>) => updateListItem("properties", id, patch), [updateListItem]);
   const updatePension = useCallback((id: string, patch: Partial<PensionIncome>) => updateListItem("pensions", id, patch), [updateListItem]);
 
-  return { update, updateAccount, updateIncome, updatePortfolio, updatePhase, updateOneOff, updateProperty, updatePension, removeListItem, setPlan };
+  return { update, updatePot, addPot, removePot, updateAccessAge, updateIncome, updatePortfolio, updatePhase, updateOneOff, updateProperty, updatePension, removeListItem, setPlan };
 }
 
 export type PlanUpdaters = ReturnType<typeof usePlanUpdaters>;

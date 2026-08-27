@@ -80,6 +80,31 @@ test.describe("inputs", () => {
     expect(await planner.percent()).toBe(Math.round(expectedFor(stored).monteCarlo.successRate));
   });
 
+  test("accounts are what you own: add a second ISA, the engine sums the type, remove it again", async ({ planner, page }) => {
+    const block = page.locator(".block").filter({ hasText: "Balances today" });
+    const cards = block.locator("details.pot");
+    const before = await cards.count();
+    const isaBefore = (await planner.storedPlan()).accounts.isa!.balance;
+    await block.getByRole("button", { name: "+ Add account" }).click();
+    await block.getByRole("menuitem", { name: /Stocks & Shares ISA/ }).click();
+    await expect(cards).toHaveCount(before + 1);
+    const added = cards.last();
+    await expect(added.locator("summary")).toContainText("Stocks & Shares ISA 2");
+    await expect(added.locator(".pot-chip")).toHaveText("tax-free");
+    await added.locator("summary").click();
+    await added.getByRole("spinbutton", { name: "Balance now" }).fill("30000");
+    await added.getByRole("spinbutton", { name: "Balance now" }).press("Tab");
+    await planner.waitSettled();
+    let stored = await planner.storedPlanWhere((plan) => plan.pots.length === before + 1 && plan.pots.at(-1)!.balance === 30_000);
+    expect(stored.accounts.isa!.balance).toBe(isaBefore + 30_000);
+    expect(await planner.percent()).toBe(Math.round(expectedFor(stored).monteCarlo.successRate));
+    await expect(block.locator(".pot-totals")).toContainText("reachable now");
+    await added.getByRole("button", { name: /^Remove/ }).click();
+    await expect(cards).toHaveCount(before);
+    stored = await planner.storedPlanWhere((plan) => plan.pots.length === before);
+    expect(stored.accounts.isa!.balance).toBe(isaBefore);
+  });
+
   test("pensions are a list: add two with different start ages, and the engine sees both", async ({ planner, page }) => {
     const incomeBlock = page.locator(".block").filter({ hasText: "Guaranteed income" });
     await expect(incomeBlock.locator(".empty")).toContainText("Add each one separately");

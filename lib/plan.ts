@@ -1,5 +1,5 @@
 import { clamp } from "./money.ts";
-import { PROFILES, isProfileId, stateIncomeRule, type Jurisdiction, type ProfileId } from "./profiles/index.ts";
+import { PROFILES, isProfileId, stateIncomeRule, type AccountRule, type Jurisdiction, type ProfileId } from "./profiles/index.ts";
 
 /**
  * fixed      – the same real amount every year.
@@ -20,6 +20,11 @@ export type AccountInput = {
 };
 
 export type GuaranteedIncomeInput = { annual: number; fromAge: number };
+
+/** One account as the user owns it — "Vanguard SIPP", "old employer pension" — of a profile-defined type that carries the rules. */
+export type Pot = { id: string; type: string; name: string; balance: number; monthlyContribution: number };
+
+export type AccountFamily = "pension" | "taxfree" | "taxable" | "cash";
 
 /** A workplace, defined-benefit or private pension (or annuity): a fixed amount, in today's money, from a set age, taxed as income. */
 export type PensionIncome = { id: string; name: string; annual: number; fromAge: number };
@@ -111,6 +116,9 @@ export type PlanInputs = {
   balancesAsOf: string | null;
   spendingPhases: SpendingPhase[];
   oneOffExpenses: OneOffExpense[];
+  /** What the user owns, one entry per real account. The engine works on `accounts`, the per-type sum of these. */
+  pots: Pot[];
+  /** Per account type: the aggregate of `pots` plus type-level settings (access age). Derived; keep it via `withPots`. */
   accounts: Record<string, AccountInput>;
   guaranteedIncome: Record<string, GuaranteedIncomeInput>;
   /** Any number of pensions beyond the state one, each with its own start age. */
@@ -211,6 +219,7 @@ export function createDefaultPlan(profileId: ProfileId): PlanInputs {
     balancesAsOf: null,
     spendingPhases: d.spendingPhases.map((phase, index) => ({ ...phase, id: `phase-${index + 1}` })),
     oneOffExpenses: [],
+    pots: potsFromAccounts(profile, Object.fromEntries(profile.accounts.map((rule) => [rule.id, { ...rule.defaults }]))),
     accounts: Object.fromEntries(profile.accounts.map((rule) => [rule.id, { ...rule.defaults, ...(rule.accessAge === null ? {} : { accessAge: rule.accessAge }) }])),
     guaranteedIncome: Object.fromEntries(profile.guaranteedIncome.map((rule) => [rule.id, { ...rule.defaults }])),
     pensions: [],
@@ -388,6 +397,66 @@ function normaliseCheckIn(item: unknown, index: number): CheckIn | null {
   return { id: asString(raw.id, `checkin-${index + 1}`), date: raw.date.slice(0, 10), age: asNumber(raw.age, 0), total: raw.total, balances };
 }
 
+/** Which colour family an account type belongs to: what the timeline already teaches. */
+export function accountFamily(rule: AccountRule): AccountFamily {
+  if (rule.isCash) return "cash";
+  if (rule.accessAge !== null) return "pension";
+  if (rule.withdrawal.kind === "free" && rule.growthTax.kind === "none") return "taxfree";
+  return "taxable";
+}
+
+/** The engine's per-type view: every rule present, balances and contributions summed across the pots of that type, access age kept. */
+export function aggregatePots(profile: Jurisdiction, pots: Pot[], previous: Record<string, AccountInput> = {}): Record<string, AccountInput> {
+  return Object.fromEntries(profile.accounts.map((rule) => {
+    const mine = pots.filter((pot) => pot.type === rule.id);
+    const account: AccountInput = { balance: mine.reduce((sum, pot) => sum + Math.max(0, pot.balance), 0), monthlyContribution: mine.reduce((sum, pot) => sum + Math.max(0, pot.monthlyContribution), 0) };
+    if (rule.accessAge !== null) account.accessAge = previous[rule.id]?.accessAge ?? rule.accessAge;
+    return [rule.id, account];
+  }));
+}
+
+/** A plan with these pots and its per-type accounts brought back in step. */
+export function withPots(plan: PlanInputs, pots: Pot[]): PlanInputs {
+  return { ...plan, pots, accounts: aggregatePots(profileOf(plan), pots, plan.accounts) };
+}
+
+/** Pots for a per-type record: one per type that holds money or receives contributions (how older plans and the starter migrate). */
+export function potsFromAccounts(profile: Jurisdiction, accounts: Record<string, AccountInput>): Pot[] {
+  return profile.accounts.flatMap((rule) => {
+    const account = accounts[rule.id];
+    return account && (account.balance > 0 || account.monthlyContribution > 0) ? [{ id: `pot-${rule.id}`, type: rule.id, name: rule.name, balance: account.balance, monthlyContribution: account.monthlyContribution }] : [];
+  });
+}
+
+export function createPot(profile: Jurisdiction, type: string, existing: Pot[]): Pot {
+  const rule = profile.accounts.find((item) => item.id === type) ?? profile.accounts[0]!;
+  const sameType = existing.filter((pot) => pot.type === rule.id).length;
+  return { id: newId("pot"), type: rule.id, name: sameType === 0 ? rule.name : `${rule.name} ${sameType + 1}`, balance: 0, monthlyContribution: 0 };
+}
+
+/** Move money between account types, taking from the pots of the source type in proportion and adding to the first pot of the target (creating one if needed). */
+export function transferBetweenTypes(plan: PlanInputs, fromType: string, toType: string, amount: number): PlanInputs {
+  const profile = profileOf(plan);
+  // A plan assembled by hand may carry per-type accounts that its pots do not add up to; trust the accounts and rebuild the pots.
+  const inSync = profile.accounts.every((rule) => { const mine = plan.pots.filter((pot) => pot.type === rule.id); return Math.abs(mine.reduce((sum, pot) => sum + pot.balance, 0) - (plan.accounts[rule.id]?.balance ?? 0)) < 0.5; });
+  const basePots = inSync ? plan.pots : potsFromAccounts(profile, plan.accounts);
+  const sources = basePots.filter((pot) => pot.type === fromType);
+  const available = sources.reduce((sum, pot) => sum + pot.balance, 0);
+  const moved = Math.min(Math.max(0, amount), available);
+  if (moved <= 0) return plan;
+  let pots = basePots.map((pot) => pot.type === fromType ? { ...pot, balance: pot.balance - moved * (pot.balance / available) } : pot);
+  const target = pots.find((pot) => pot.type === toType);
+  pots = target ? pots.map((pot) => pot.id === target.id ? { ...pot, balance: pot.balance + moved } : pot) : [...pots, { ...createPot(profile, toType, pots), balance: moved }];
+  return withPots(plan, pots);
+}
+
+function normalisePot(item: unknown, index: number, profile: Jurisdiction): Pot | null {
+  const raw = asRecord(item);
+  const rule = profile.accounts.find((candidate) => candidate.id === raw.type);
+  if (!rule) return null;
+  return { id: asString(raw.id, `pot-${index + 1}`), type: rule.id, name: asString(raw.name, rule.name), balance: Math.max(0, asNumber(raw.balance, 0)), monthlyContribution: Math.max(0, asNumber(raw.monthlyContribution, 0)) };
+}
+
 export function createPension(index: number): PensionIncome {
   return { id: newId("pension"), name: index === 1 ? "Workplace pension" : `Pension ${index}`, annual: 6_000, fromAge: 65 };
 }
@@ -408,6 +477,17 @@ export function normalisePlan(input: unknown): PlanInputs {
   const retirementAge = Math.max(currentAge, asNumber(raw.retirementAge, base.retirementAge));
   const planToAge = Math.max(retirementAge + 1, asNumber(raw.planToAge, base.planToAge));
   const rawAccounts = asRecord(raw.accounts);
+  const storedAccounts: Record<string, AccountInput> = Object.fromEntries(profile.accounts.map((rule) => {
+      const stored = asRecord(rawAccounts[rule.id]);
+      const fallback = base.accounts[rule.id]!;
+      const account: AccountInput = {
+        balance: Math.max(0, asNumber(stored.balance, fallback.balance)),
+        monthlyContribution: Math.max(0, asNumber(stored.monthlyContribution, fallback.monthlyContribution)),
+      };
+      if (rule.accessAge !== null) account.accessAge = asNumber(stored.accessAge, rule.accessAge);
+      return [rule.id, account];
+    }));
+  const pots: Pot[] = Array.isArray(raw.pots) ? raw.pots.map((item, index) => normalisePot(item, index, profile)).filter((pot): pot is Pot => pot !== null) : potsFromAccounts(profile, storedAccounts);
   const rawIncome = asRecord(raw.guaranteedIncome);
   const rawPortfolio = asRecord(raw.portfolio);
   const rawPhases = Array.isArray(raw.spendingPhases) ? raw.spendingPhases : null;
@@ -454,16 +534,8 @@ export function normalisePlan(input: unknown): PlanInputs {
         return { id: asString(expense.id, `expense-${index + 1}`), label: asString(expense.label, "One-off cost"), age: asNumber(expense.age, retirementAge), amount: asNumber(expense.amount, 0) };
       })
       : [],
-    accounts: Object.fromEntries(profile.accounts.map((rule) => {
-      const stored = asRecord(rawAccounts[rule.id]);
-      const fallback = base.accounts[rule.id]!;
-      const account: AccountInput = {
-        balance: Math.max(0, asNumber(stored.balance, fallback.balance)),
-        monthlyContribution: Math.max(0, asNumber(stored.monthlyContribution, fallback.monthlyContribution)),
-      };
-      if (rule.accessAge !== null) account.accessAge = asNumber(stored.accessAge, rule.accessAge);
-      return [rule.id, account];
-    })),
+    pots,
+    accounts: aggregatePots(profile, pots, storedAccounts),
     guaranteedIncome: Object.fromEntries(profile.guaranteedIncome.map((rule) => {
       const stored = asRecord(rawIncome[rule.id]);
       return [rule.id, { annual: Math.max(0, asNumber(stored.annual, rule.defaults.annual)), fromAge: asNumber(stored.fromAge, rule.defaults.fromAge) }];
@@ -550,6 +622,7 @@ export function buildStarterPlan(profileId: ProfileId, starter: StarterInputs): 
     checkIns: [],
     savedAt: null,
     changedAt: starter.balancesAsOf,
+    pots: potsFromAccounts(profile, accounts),
     accounts,
     balancesAsOf: starter.balancesAsOf,
   });

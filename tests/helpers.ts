@@ -1,4 +1,4 @@
-import { DEFAULT_PORTFOLIO, createDefaultPlan, createProperty, PROFILES, type PlanInputs, type ProfileId, type PropertyAsset } from "../lib/planner.ts";
+import { DEFAULT_PORTFOLIO, createDefaultPlan, createProperty, potsFromAccounts, PROFILES, type PlanInputs, type ProfileId, type PropertyAsset } from "../lib/planner.ts";
 
 /** Portfolio with no growth and no inflation, so figures can be checked by hand. */
 export const FLAT_PORTFOLIO = { ...DEFAULT_PORTFOLIO, stocksPercent: 0, bondsPercent: 0, cashReturnPercent: 0, inflationPercent: 0, annualFeePercent: 0 };
@@ -28,7 +28,7 @@ export function property(profile: ProfileId, overrides: Partial<PropertyAsset> =
 /** A 46-year-old retiring at 50 on £800/month with an ISA, a SIPP and one paid-off rental. */
 export function ukScenario(overrides: Partial<PlanInputs> = {}): PlanInputs {
   const base = createDefaultPlan("uk");
-  return {
+  const plan: PlanInputs = {
     ...base,
     currentAge: 46,
     retirementAge: 50,
@@ -44,6 +44,8 @@ export function ukScenario(overrides: Partial<PlanInputs> = {}): PlanInputs {
     properties: [property("uk")],
     ...overrides,
   };
+  // Tests describe accounts per type; keep the pots in step so both views of the plan agree.
+  return overrides.pots ? plan : { ...plan, pots: potsFromAccounts(PROFILES.uk, plan.accounts) };
 }
 
 export function noAccounts(profile: ProfileId): PlanInputs["accounts"] {
