@@ -5,10 +5,10 @@ export const metadata: Metadata = {
   ...(process.env.SITE_URL ? { metadataBase: new URL(process.env.SITE_URL) } : {}),
   title: "Early Retirement Planner",
   description:
-    "Will your money last if you stop work early? A free planner for the UK, US and Poland: your accounts, property, pensions and spending run through 1,000 possible futures of markets and inflation, with each country’s tax and pension rules applied year by year. Nothing you enter leaves your browser.",
+    "Will your money last if you stop work early? A free planner for the UK, US, Poland and Romania: your accounts, property, pensions and spending run through 1,000 possible futures of markets and inflation, with each country’s tax and pension rules applied year by year. Nothing you enter leaves your browser.",
   openGraph: {
     title: "Early Retirement Planner",
-    description: "Know when work becomes optional. UK, US and Poland: your savings, property and spending tested across 1,000 possible futures of markets and inflation, with real tax rules. Runs entirely in your browser.",
+    description: "Know when work becomes optional. UK, US, Poland and Romania: your savings, property and spending tested across 1,000 possible futures of markets and inflation, with real tax rules. Runs entirely in your browser.",
     type: "website",
     images: [
       {
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Early Retirement Planner",
-    description: "Will your money last if you stop work early? UK, US and Poland, 1,000 simulated futures, real tax rules, nothing leaves your browser.",
+    description: "Will your money last if you stop work early? UK, US, Poland and Romania, 1,000 simulated futures, real tax rules, nothing leaves your browser.",
     images: ["/og.png"],
   },
   icons: {

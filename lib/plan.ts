@@ -359,6 +359,7 @@ const LEGACY_PENSION_SLOT: Record<ProfileId, { id: string; name: string }> = {
   uk: { id: "definedBenefit", name: "Defined benefit pension" },
   us: { id: "pension", name: "Employer pension" },
   pl: { id: "other", name: "Other pension" },
+  ro: { id: "other", name: "Other pension" },
 };
 
 function legacyPensions(profileId: ProfileId, rawIncome: UnknownRecord): PensionIncome[] {

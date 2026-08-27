@@ -1,10 +1,11 @@
 import { PL } from "./pl.ts";
+import { RO } from "./ro.ts";
 import type { AccountRule, GuaranteedIncomeRule, Jurisdiction, ProfileId, TaxSchedule } from "./types.ts";
 import { UK } from "./uk.ts";
 import { US } from "./us.ts";
 
-export const PROFILES: Record<ProfileId, Jurisdiction> = { uk: UK, us: US, pl: PL };
-export const PROFILE_IDS: ProfileId[] = ["uk", "us", "pl"];
+export const PROFILES: Record<ProfileId, Jurisdiction> = { uk: UK, us: US, pl: PL, ro: RO };
+export const PROFILE_IDS: ProfileId[] = ["uk", "us", "pl", "ro"];
 
 export function isProfileId(value: unknown): value is ProfileId {
   return typeof value === "string" && value in PROFILES;

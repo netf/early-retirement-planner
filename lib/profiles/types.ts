@@ -4,7 +4,7 @@
  * it only reads these rules.
  */
 
-export type ProfileId = "uk" | "us" | "pl";
+export type ProfileId = "uk" | "us" | "pl" | "ro";
 
 export type TaxBand = { upTo: number; rate: number };
 

@@ -2,14 +2,14 @@
 
 [![CI](https://github.com/netf/early-retirement-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/netf/early-retirement-planner/actions/workflows/ci.yml)
 
-**Will your money last if you stop work early?** A free planner for the UK, US and Poland. Enter your ages, spending, accounts, property and pensions; it runs every year of your plan through 1,000 possible futures of markets and inflation, applying each country's tax and pension rules, and tells you how often the money lasts — plus the earliest age the plan supports, the extra saving that would make it work, and what it can carry.
+**Will your money last if you stop work early?** A free planner for the UK, US, Poland and Romania. Enter your ages, spending, accounts, property and pensions; it runs every year of your plan through 1,000 possible futures of markets and inflation, applying each country's tax and pension rules, and tells you how often the money lasts — plus the earliest age the plan supports, the extra saving that would make it work, and what it can carry.
 
 Everything runs in the visitor's browser (the heavy maths in a Web Worker). Nothing is sent to a server; a plan lives in the browser's local storage and can be shared as a link or a file, which only the holder can open. **This is a planning tool, not financial advice** — see `/about`.
 
 ## What it models
 
-- Accounts per country — ISA / SIPP / GIA / cash; 401(k) / Roth / brokerage; IKE / IKZE / PPK / brokerage — each with its own access age, tax treatment and withdrawal order.
-- Income tax per country (England & NI, Scotland, US single/married, Poland), tax-free pension cash, flat taxes, rental income with finance-cost relief, state pensions and other guaranteed income.
+- Accounts per country — ISA / SIPP / GIA / cash; 401(k) / Roth / brokerage; IKE / IKZE / PPK; Pilon II / Pilon III — each with its own access age, tax treatment and withdrawal order.
+- Income tax per country (England & NI, Scotland, US single/married, Poland, Romania), tax-free pension cash, flat taxes, rental income with finance-cost relief, state pensions and other guaranteed income.
 - Rental property: purchase, mortgage, growth, vacancy, running costs, sale.
 - Four spending rules: fixed, protect (cut after a bad year), flex (Guyton–Klinger guardrails), spend-it-down (amortise to a chosen amount).
 - 1,000 simulated futures (Monte Carlo), historical backtests from 1928, five named stress tests, an access-gap analysis for the years before pensions unlock, and a year-by-year audit trail explaining every number.

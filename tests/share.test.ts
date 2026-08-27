@@ -34,7 +34,7 @@ test("looksLikePlan tells our files (and legacy ones) from other JSON", () => {
 });
 
 test("the starter plan puts the six numbers where the profile expects them and is a valid plan", () => {
-  for (const profileId of ["uk", "us", "pl"] as const) {
+  for (const profileId of ["uk", "us", "pl", "ro"] as const) {
     const profile = PROFILES[profileId];
     const plan = buildStarterPlan(profileId, { currentAge: 38, retirementAge: 52, monthlySpending: 2_400, pensionBalance: 180_000, accessibleBalance: 60_000, monthlySaving: 900, balancesAsOf: "2026-08-25" });
     assert.equal(plan.currentAge, 38); assert.equal(plan.retirementAge, 52);

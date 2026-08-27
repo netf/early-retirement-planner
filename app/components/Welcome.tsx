@@ -10,6 +10,7 @@ const STARTERS: Record<ProfileId, Omit<StarterInputs, "balancesAsOf">> = {
   uk: { currentAge: 40, retirementAge: 55, monthlySpending: 2_500, pensionBalance: 150_000, accessibleBalance: 60_000, monthlySaving: 1_000 },
   us: { currentAge: 40, retirementAge: 55, monthlySpending: 4_500, pensionBalance: 300_000, accessibleBalance: 100_000, monthlySaving: 1_500 },
   pl: { currentAge: 40, retirementAge: 55, monthlySpending: 8_000, pensionBalance: 300_000, accessibleBalance: 200_000, monthlySaving: 3_000 },
+  ro: { currentAge: 40, retirementAge: 55, monthlySpending: 10_000, pensionBalance: 100_000, accessibleBalance: 250_000, monthlySaving: 3_000 },
 };
 
 /** Six numbers and a country: enough to build a first plan. Everything else can be refined afterwards. */
