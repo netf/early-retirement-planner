@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { accountFamily, profileOf, type AccountRule, type PlanInputs } from "../../../lib/planner";
+import { accountFamily, contributionsTowardLimit, profileOf, type AccountRule, type PlanInputs } from "../../../lib/planner";
 import { NumberField, TextField } from "../fields";
 import { useMoney } from "../money";
 import { Info } from "../Info";
@@ -58,7 +58,7 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
       {plan.pots.map((pot) => {
         const rule = ruleOf(pot.type);
         const family = accountFamily(rule);
-        const overLimit = rule.annualLimit !== undefined && (plan.accounts[rule.id]?.monthlyContribution ?? 0) * 12 > rule.annualLimit;
+        const overLimit = rule.annualLimit !== undefined && contributionsTowardLimit(plan, rule) > rule.annualLimit;
         const sameType = plan.pots.filter((item) => item.type === rule.id).length;
         return (
           <details className={`property pot family-${family}`} key={pot.id}>
@@ -75,7 +75,7 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
               <p className="note"><b>{rule.name}</b> · {rule.tag}</p>
               <div className="grid two">
                 <NumberField label="Balance now" value={pot.balance} prefix={money.symbol} step={1_000} onChange={(value) => updatePot(pot.id, { balance: value })} />
-                <NumberField label="Added per month" value={pot.monthlyContribution} prefix={money.symbol} step={100} onChange={(value) => updatePot(pot.id, { monthlyContribution: value })} hint={overLimit ? `Over the annual limit of ${money.format(rule.annualLimit!)} across your ${rule.name} accounts` : rule.contributionHint} />
+                <NumberField label="Added per month" value={pot.monthlyContribution} prefix={money.symbol} step={100} onChange={(value) => updatePot(pot.id, { monthlyContribution: value })} hint={overLimit ? `Over the ${money.format(rule.annualLimit!)} annual limit${rule.limitGroup ? " shared across your ISAs" : ` across your ${rule.name} accounts`}` : rule.contributionHint} />
               </div>
               {rule.accessAge !== null || hasTaxFreeCap(rule) ? (
                 <>

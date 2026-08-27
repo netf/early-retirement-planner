@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateGoalMetrics, estimatedPropertyMonthlyCashIncome, runMonteCarlo, simulatePlan } from "../lib/planner.ts";
+import { calculateGoalMetrics, estimatedPropertyMonthlyCashIncome, planChecks, runMonteCarlo, simulatePlan } from "../lib/planner.ts";
 import { FLAT_PORTFOLIO, noAccounts, noIncome, property, ukScenario } from "./helpers.ts";
 
 const year = (plan: Parameters<typeof simulatePlan>[0], age: number) => simulatePlan(plan).years.find((item) => item.age === age);
@@ -134,4 +134,23 @@ test("several pensions start in their own years and are taxed together as income
   // 17,000 taxable against the 12,570 allowance at 20%.
   assert.ok(Math.abs(at(65).tax - (17_000 - 12_570) * 0.2) < 0.01, `${at(65).tax}`);
   assert.equal(at(64).tax, 0);
+});
+
+test("cash interest is taxed above the £1,000 savings allowance; a Cash ISA earns the same interest tax-free", () => {
+  const plan = ukScenario({ currentAge: 40, retirementAge: 60, planToAge: 41, portfolio: { ...FLAT_PORTFOLIO, cashReturnPercent: 4 }, accounts: { ...noAccounts("uk"), cash: { balance: 50_000, monthlyContribution: 0 }, cashIsa: { balance: 50_000, monthlyContribution: 0 } }, guaranteedIncome: noIncome("uk"), properties: [] });
+  const year = simulatePlan(plan).years[1]!;
+  // £2,000 interest each; only the taxable account loses 20% of the £1,000 above the allowance.
+  assert.ok(Math.abs(year.balances.cashIsa! - 52_000) < 0.01, `${year.balances.cashIsa}`);
+  assert.ok(Math.abs(year.balances.cash! - 51_800) < 0.01, `${year.balances.cash}`);
+  const small = ukScenario({ currentAge: 40, retirementAge: 60, planToAge: 41, portfolio: { ...FLAT_PORTFOLIO, cashReturnPercent: 4 }, accounts: { ...noAccounts("uk"), cash: { balance: 20_000, monthlyContribution: 0 } }, guaranteedIncome: noIncome("uk"), properties: [] });
+  assert.ok(Math.abs(simulatePlan(small).years[1]!.balances.cash! - 20_800) < 0.01, "interest inside the allowance is untouched");
+});
+
+test("the ISA allowance is shared: two ISAs over £20,000 together warn once, each alone does not", () => {
+  const under = ukScenario({ accounts: { ...noAccounts("uk"), isa: { balance: 0, monthlyContribution: 1_000 }, cashIsa: { balance: 0, monthlyContribution: 600 } } });
+  assert.ok(!planChecks(under).some((check) => check.text.includes("annual limit")), "£19,200 a year is within the shared allowance");
+  const over = ukScenario({ accounts: { ...noAccounts("uk"), isa: { balance: 0, monthlyContribution: 1_000 }, cashIsa: { balance: 0, monthlyContribution: 800 } } });
+  const warnings = planChecks(over).filter((check) => check.text.includes("annual limit"));
+  assert.equal(warnings.length, 1);
+  assert.ok(warnings[0]!.text.includes("Stocks & Shares ISA and Cash ISA together"), warnings[0]!.text);
 });

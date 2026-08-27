@@ -29,7 +29,9 @@ export type GrowthTaxRule =
   /** An annual drag in percentage points, taken from the plan (UK GIA, US brokerage). */
   | { kind: "drag" }
   /** A share of each year's positive return taxed annually (Polish Belka tax). */
-  | { kind: "share-of-return"; rate: number };
+  | { kind: "share-of-return"; rate: number }
+  /** Interest above a yearly allowance is taxed at a flat rate (UK personal savings allowance, basic rate). */
+  | { kind: "interest"; allowance: number; rate: number };
 
 export type AccountRule = {
   id: string;
@@ -44,6 +46,10 @@ export type AccountRule = {
   /** Holds cash rather than the invested portfolio. */
   isCash?: boolean;
   annualLimit?: number;
+  /** Rules sharing an allowance: the limit applies to their contributions added together (ISA family). */
+  limitGroup?: string;
+  /** Colour family shown in the UI when the heuristic (locked / tax-free / taxable / cash) would mislead. */
+  family?: "pension" | "taxfree" | "taxable" | "cash";
   contributionHint?: string;
   defaults: { balance: number; monthlyContribution: number };
 };

@@ -399,6 +399,7 @@ function normaliseCheckIn(item: unknown, index: number): CheckIn | null {
 
 /** Which colour family an account type belongs to: what the timeline already teaches. */
 export function accountFamily(rule: AccountRule): AccountFamily {
+  if (rule.family) return rule.family;
   if (rule.isCash) return "cash";
   if (rule.accessAge !== null) return "pension";
   if (rule.withdrawal.kind === "free" && rule.growthTax.kind === "none") return "taxfree";
@@ -632,4 +633,11 @@ export function buildStarterPlan(profileId: ProfileId, starter: StarterInputs): 
 export function hasUnsavedData(plan: PlanInputs): boolean {
   if (plan.baseline === null || plan.changedAt === null) return false;
   return plan.savedAt === null || plan.changedAt > plan.savedAt;
+}
+
+/** Contributions counted against a rule's annual limit: its own, or the whole group's when the allowance is shared. */
+export function contributionsTowardLimit(plan: PlanInputs, rule: AccountRule): number {
+  const profile = profileOf(plan);
+  const members = rule.limitGroup ? profile.accounts.filter((item) => item.limitGroup === rule.limitGroup) : [rule];
+  return members.reduce((sum, item) => sum + (plan.accounts[item.id]?.monthlyContribution ?? 0) * 12, 0);
 }

@@ -278,6 +278,10 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
         let taxed = nominal;
         if (rule.growthTax.kind === "drag") taxed = nominal - plan.portfolio.taxableDragPercent;
         if (rule.growthTax.kind === "share-of-return" && nominal > 0) taxed = nominal * (1 - rule.growthTax.rate);
+        if (rule.growthTax.kind === "interest" && nominal > 0 && balance > 0) {
+          const interest = balance * nominal / 100;
+          taxed = nominal - Math.max(0, interest - rule.growthTax.allowance) * rule.growthTax.rate / balance * 100;
+        }
         const contribution = age <= plan.retirementAge ? (plan.accounts[rule.id]?.monthlyContribution ?? 0) * 12 : 0;
         contributions += contribution;
         const real = realRate(taxed, inflation);

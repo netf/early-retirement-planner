@@ -94,13 +94,14 @@ function mixOf(plan: PlanInputs): { stocks: number; bonds: number; cash: number;
 }
 
 /** Real growth factor the engine should have applied to an account this year. */
-function realGrowth(plan: PlanInputs, ruleId: string, path: MarketPath, index: number): number {
+function realGrowth(plan: PlanInputs, ruleId: string, path: MarketPath, index: number, balance: number): number {
   const rule = PROFILES[plan.profile].accounts.find((item) => item.id === ruleId)!;
   const mix = mixOf(plan);
   const nominal = rule.isCash ? path.cashReturns[index]! : mix.stocks * path.stockReturns[index]! + mix.bonds * path.bondReturns[index]! + mix.cash * path.cashReturns[index]! - mix.fee;
   let taxed = nominal;
   if (rule.growthTax.kind === "drag") taxed = nominal - plan.portfolio.taxableDragPercent;
   if (rule.growthTax.kind === "share-of-return" && nominal > 0) taxed = nominal * (1 - rule.growthTax.rate);
+  if (rule.growthTax.kind === "interest" && nominal > 0 && balance > 0) taxed = nominal - Math.max(0, balance * nominal / 100 - rule.growthTax.allowance) * rule.growthTax.rate / balance * 100;
   return 1 + realRate(taxed, path.inflation[index]!);
 }
 
@@ -112,7 +113,7 @@ function investedRealReturn(plan: PlanInputs, path: MarketPath, previous: YearRe
     if (rule.isCash) continue;
     const balance = previous.balances[rule.id]!;
     total += balance;
-    weighted += balance * (realGrowth(plan, rule.id, path, index) - 1);
+    weighted += balance * (realGrowth(plan, rule.id, path, index, balance) - 1);
   }
   return total > 0 ? weighted / total : realRate(path.portfolioReturns[index]!, path.inflation[index]!);
 }
@@ -171,10 +172,10 @@ function checkYear(plan: PlanInputs, path: MarketPath, previous: YearResult | un
     let cashInflows = year.surplusSaved + year.saleProceeds;
     for (const rule of profile.accounts) {
       const contribution = year.age <= plan.retirementAge ? plan.accounts[rule.id]!.monthlyContribution * 12 : 0;
-      const expected = previous.balances[rule.id]! * realGrowth(plan, rule.id, path, index) + contribution - year.withdrawalsByAccount[rule.id]! + (rule.isCash ? cashInflows : 0);
+      const expected = previous.balances[rule.id]! * realGrowth(plan, rule.id, path, index, previous.balances[rule.id]!) + contribution - year.withdrawalsByAccount[rule.id]! + (rule.isCash ? cashInflows : 0);
       if (rule.isCash) cashInflows = 0;
       assert.ok(Math.abs(Math.max(0, expected) - year.balances[rule.id]!) < 0.05, `${where} ${rule.id}: expected ${expected}, got ${year.balances[rule.id]}`);
-      assert.ok(year.withdrawalsByAccount[rule.id]! <= previous.balances[rule.id]! * realGrowth(plan, rule.id, path, index) + contribution + (rule.isCash ? year.surplusSaved + year.saleProceeds : 0) + 0.05, `${where} ${rule.id}: overdrawn`);
+      assert.ok(year.withdrawalsByAccount[rule.id]! <= previous.balances[rule.id]! * realGrowth(plan, rule.id, path, index, previous.balances[rule.id]!) + contribution + (rule.isCash ? year.surplusSaved + year.saleProceeds : 0) + 0.05, `${where} ${rule.id}: overdrawn`);
       // Locked accounts are never touched before their access age.
       if (rule.accessAge !== null && year.age < plan.accounts[rule.id]!.accessAge!) assert.equal(year.withdrawalsByAccount[rule.id], 0, `${where} ${rule.id}: drawn before access age`);
     }

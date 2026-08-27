@@ -1,7 +1,7 @@
 import { planMix } from "./market.ts";
 import type { MonteCarloResult } from "./monteCarlo.ts";
 import type { Projection } from "./simulate.ts";
-import { activeMonthlySpending, pensionAccessAge, profileOf, statePensionAge, type PlanInputs } from "./plan.ts";
+import { activeMonthlySpending, contributionsTowardLimit, pensionAccessAge, profileOf, statePensionAge, type PlanInputs } from "./plan.ts";
 
 export type PlanCheck = { level: "warn" | "info"; text: string };
 
@@ -16,9 +16,15 @@ export function planChecks(plan: PlanInputs, monteCarlo?: MonteCarloResult, proj
   const bridgeYears = Math.max(0, pensionAccessAge(plan) - plan.retirementAge);
   const mix = planMix(plan);
 
+  const warnedGroups = new Set<string>();
   for (const rule of profile.accounts) {
-    const account = plan.accounts[rule.id];
-    if (rule.annualLimit !== undefined && account && account.monthlyContribution * 12 > rule.annualLimit) {
+    if (rule.annualLimit === undefined || contributionsTowardLimit(plan, rule) <= rule.annualLimit) continue;
+    if (rule.limitGroup) {
+      if (warnedGroups.has(rule.limitGroup)) continue;
+      warnedGroups.add(rule.limitGroup);
+      const names = profile.accounts.filter((item) => item.limitGroup === rule.limitGroup).map((item) => item.name).join(" and ");
+      checks.push({ level: "warn", text: `Contributions to ${names} together exceed the shared annual limit of ${rule.annualLimit.toLocaleString(profile.locale)}.` });
+    } else {
       checks.push({ level: "warn", text: `${rule.name} contributions exceed the annual limit of ${rule.annualLimit.toLocaleString(profile.locale)}.` });
     }
   }
