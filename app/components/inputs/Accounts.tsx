@@ -9,6 +9,8 @@ import { Block } from "./Block";
 import type { PlanUpdaters } from "./use-plan";
 
 const FAMILY_LABEL = { pension: "locked", taxfree: "tax-free", taxable: "taxable", cash: "cash" } as const;
+const hasTaxFreeCap = (rule: AccountRule) => rule.withdrawal.kind === "income" && rule.withdrawal.taxFreeCap !== undefined;
+const taxFreeCapOf = (rule: AccountRule) => rule.withdrawal.kind === "income" ? rule.withdrawal.taxFreeCap ?? 0 : 0;
 
 /** "+ Add account": a menu of the profile's account types, each with its rule in one line. */
 function AddAccount({ rules, onAdd }: { rules: AccountRule[]; onAdd: (type: string) => void }) {
@@ -49,7 +51,6 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
   const reachable = plan.pots.filter((pot) => ruleOf(pot.type).accessAge === null).reduce((sum, pot) => sum + pot.balance, 0);
   const locked = plan.pots.filter((pot) => ruleOf(pot.type).accessAge !== null).reduce((sum, pot) => sum + pot.balance, 0);
   const lockedRules = profile.accounts.filter((rule) => rule.accessAge !== null && plan.pots.some((pot) => pot.type === rule.id));
-  const capRule = profile.accounts.find((rule) => rule.withdrawal.kind === "income" && rule.withdrawal.taxFreeCap !== undefined && plan.pots.some((pot) => pot.type === rule.id));
 
   return (
     <Block title="Accounts" note="Balances today" action={<AddAccount rules={profile.accounts} onAdd={addPot} />} info={<Info title="Accounts"><span>Add the accounts you actually have, one card each. The type carries the rules — when you can touch it and how withdrawals are taxed — so two pensions or two ISAs are treated together, exactly as the tax rules do. The planner drains them in a tax-aware order, so where the money sits matters as much as how much there is.</span><em>Example: an ISA is tax-free any time; a SIPP is locked until 57 and then partly taxed — great for later, useless for the years just after you stop.</em></Info>}>
@@ -58,6 +59,7 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
         const rule = ruleOf(pot.type);
         const family = accountFamily(rule);
         const overLimit = rule.annualLimit !== undefined && (plan.accounts[rule.id]?.monthlyContribution ?? 0) * 12 > rule.annualLimit;
+        const sameType = plan.pots.filter((item) => item.type === rule.id).length;
         return (
           <details className={`property pot family-${family}`} key={pot.id}>
             <summary>
@@ -75,18 +77,21 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
                 <NumberField label="Balance now" value={pot.balance} prefix={money.symbol} step={1_000} onChange={(value) => updatePot(pot.id, { balance: value })} />
                 <NumberField label="Added per month" value={pot.monthlyContribution} prefix={money.symbol} step={100} onChange={(value) => updatePot(pot.id, { monthlyContribution: value })} hint={overLimit ? `Over the annual limit of ${money.format(rule.annualLimit!)} across your ${rule.name} accounts` : rule.contributionHint} />
               </div>
+              {rule.accessAge !== null || hasTaxFreeCap(rule) ? (
+                <>
+                  <div className="sub-head"><span>{rule.name} rules</span><span className="note">{sameType > 1 ? `shared by all ${sameType} of your ${rule.name} accounts` : "set by the type of account"}</span></div>
+                  <div className={`grid ${rule.accessAge !== null && hasTaxFreeCap(rule) ? "two" : "one"}`}>
+                    {rule.accessAge !== null ? <NumberField label="Access age" value={plan.accounts[rule.id]?.accessAge ?? rule.accessAge} min={plan.currentAge} max={80} onChange={(value) => updateAccessAge(rule.id, value)} info={<Info title="Access age"><span>The earliest age this kind of account lets you take money out; it applies to every account of the type. Before then the planner treats them as locked, however much is inside.</span><em>Example: retire at 50 with pensions open from 57 and the first 7 years must be funded from other accounts.</em></Info>} /> : null}
+                    {hasTaxFreeCap(rule) ? <NumberField label="Tax-free cash already taken" value={plan.taxFreeUsed} prefix={money.symbol} step={1_000} onChange={(value) => update("taxFreeUsed", value)} hint={`Counts against the ${money.format(taxFreeCapOf(rule))} lifetime allowance, across all your pensions`} /> : null}
+                  </div>
+                </>
+              ) : null}
             </div>
           </details>
         );
       })}
       {plan.pots.length > 0 ? (
         <p className="pot-totals"><span><b>{money.compact(reachable)}</b> reachable now</span><span><b>{money.compact(locked)}</b> locked{lockedRules.length > 0 ? ` until ${Math.min(...lockedRules.map((rule) => plan.accounts[rule.id]?.accessAge ?? rule.accessAge ?? 0))}` : ""}</span></p>
-      ) : null}
-      {lockedRules.length > 0 || capRule ? (
-        <div className={`grid ${lockedRules.length + (capRule ? 1 : 0) > 1 ? "two" : "one"}`}>
-          {lockedRules.map((rule) => <NumberField key={rule.id} label={`${rule.name} access age`} value={plan.accounts[rule.id]?.accessAge ?? rule.accessAge ?? 57} min={plan.currentAge} max={80} onChange={(value) => updateAccessAge(rule.id, value)} info={<Info title="Access age"><span>The earliest age this kind of account lets you take money out; it applies to every account of the type. Before then the planner treats them as locked, however much is inside.</span><em>Example: retire at 50 with pensions open from 57 and the first 7 years must be funded from other accounts.</em></Info>} />)}
-          {capRule ? <NumberField label="Tax-free cash already taken" value={plan.taxFreeUsed} prefix={money.symbol} step={1_000} onChange={(value) => update("taxFreeUsed", value)} hint={`Counts against the ${money.format(capRule.withdrawal.kind === "income" ? capRule.withdrawal.taxFreeCap! : 0)} lifetime allowance`} /> : null}
-        </div>
       ) : null}
     </Block>
   );
