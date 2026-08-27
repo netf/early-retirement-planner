@@ -370,12 +370,14 @@ h1, h2, h3, h4, p, dl, dd, dt { margin: 0; }
 .pot.family-taxfree summary { border-left-color: var(--green); }
 .pot.family-taxable summary { border-left-color: var(--yellow); }
 .pot.family-cash summary { border-left-color: var(--rule-soft); }
+.pot.family-income summary { border-left-color: var(--lilac); }
 .pot[open] summary, .pot summary:hover { background: var(--paper); }
 .pot-chip { border: 2px solid var(--ink); border-radius: 999px; font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 2px 8px; text-transform: uppercase; white-space: nowrap; }
 .pot-chip.family-pension { background: var(--blue); }
 .pot-chip.family-taxfree { background: var(--green); }
 .pot-chip.family-taxable { background: var(--yellow); }
 .pot-chip.family-cash { background: var(--card); }
+.pot-chip.family-income { background: var(--lilac); }
 .pot-totals { color: var(--ink-soft); display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px 22px; margin: 2px 0 0; }
 .pot-totals b { color: var(--ink); font-family: var(--mono); font-weight: 600; }
 .add-menu { position: relative; }
@@ -388,6 +390,8 @@ h1, h2, h3, h4, p, dl, dd, dt { margin: 0; }
 .family-taxfree .pot-swatch { background: var(--green); }
 .family-taxable .pot-swatch { background: var(--yellow); }
 .family-cash .pot-swatch { background: var(--card); }
+.family-income .pot-swatch { background: var(--lilac); }
+.add-menu-list .listbox-group { cursor: default; padding-top: 10px; }
 
 /* ── results ─────────────────────────────────────────────────────────── */
 .buildup { align-items: center; border: var(--bw) solid var(--ink); border-radius: 10px; display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 12px 16px; }

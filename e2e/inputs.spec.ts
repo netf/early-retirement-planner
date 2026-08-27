@@ -106,11 +106,11 @@ test.describe("inputs", () => {
   });
 
   test("pensions are a list: add two with different start ages, and the engine sees both", async ({ planner, page }) => {
-    const incomeBlock = page.locator(".block").filter({ hasText: "Guaranteed income" });
-    await expect(incomeBlock.locator(".empty")).toContainText("Add each one separately");
-    await incomeBlock.getByRole("button", { name: "+ Add" }).click();
-    await incomeBlock.getByRole("button", { name: "+ Add" }).click();
-    const cards = incomeBlock.locator("details.property");
+    const incomeBlock = page.locator(".block").filter({ hasText: "Balances today" });
+    const addPension = async () => { await incomeBlock.getByRole("button", { name: "+ Add account" }).click(); await incomeBlock.getByRole("menuitem", { name: /Defined benefit/ }).click(); };
+    await addPension();
+    await addPension();
+    const cards = incomeBlock.locator("details.family-income");
     await expect(cards).toHaveCount(2);
     await cards.nth(0).locator("summary").click();
     await cards.nth(0).getByRole("textbox", { name: "Name" }).fill("NHS");
@@ -122,6 +122,7 @@ test.describe("inputs", () => {
     await cards.nth(1).getByRole("spinbutton", { name: "Starts at age" }).press("Tab");
     await planner.waitSettled();
     await expect(cards.nth(0).locator("summary")).toContainText("NHS");
+    await expect(incomeBlock.locator(".pot-totals")).toContainText("a year for life from 60");
     const stored = await planner.storedPlan();
     expect(stored.pensions.map((item) => [item.annual, item.fromAge])).toEqual([[9_000, 60], [8_000, 65]]);
     expect(await planner.percent()).toBe(Math.round(expectedFor(stored).monteCarlo.successRate));

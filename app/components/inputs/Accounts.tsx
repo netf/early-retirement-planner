@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { accountFamily, contributionsTowardLimit, profileOf, type AccountRule, type PlanInputs } from "../../../lib/planner";
+import { accountFamily, contributionsTowardLimit, createPension, profileOf, type AccountRule, type PlanInputs } from "../../../lib/planner";
 import { NumberField, TextField } from "../fields";
 import { useMoney } from "../money";
 import { Info } from "../Info";
@@ -13,7 +13,7 @@ const hasTaxFreeCap = (rule: AccountRule) => rule.withdrawal.kind === "income" &
 const taxFreeCapOf = (rule: AccountRule) => rule.withdrawal.kind === "income" ? rule.withdrawal.taxFreeCap ?? 0 : 0;
 
 /** "+ Add account": a menu of the profile's account types, each with its rule in one line. */
-function AddAccount({ rules, onAdd }: { rules: AccountRule[]; onAdd: (type: string) => void }) {
+function AddAccount({ rules, onAdd, onAddPension }: { rules: AccountRule[]; onAdd: (type: string) => void; onAddPension: () => void }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -33,6 +33,11 @@ function AddAccount({ rules, onAdd }: { rules: AccountRule[]; onAdd: (type: stri
               <small>{rule.tag}</small>
             </li>
           ))}
+          <li className="listbox-group">Income for life</li>
+          <li role="menuitem" tabIndex={0} className="family-income" onClick={() => { onAddPension(); setOpen(false); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onAddPension(); setOpen(false); } }}>
+            <span><i className="pot-swatch" />Defined benefit / workplace pension</span>
+            <small>a fixed amount a year from a set age · taxed as income</small>
+          </li>
         </ul>
       ) : null}
     </div>
@@ -46,15 +51,18 @@ function AddAccount({ rules, onAdd }: { rules: AccountRule[]; onAdd: (type: stri
 export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanUpdaters }) {
   const money = useMoney();
   const profile = profileOf(plan);
-  const { updatePot, addPot, removePot, updateAccessAge, update } = updaters;
+  const { updatePot, addPot, removePot, updateAccessAge, update, updatePension, removeListItem, setPlan } = updaters;
+  const addPension = () => setPlan((current) => ({ ...current, pensions: [...current.pensions, createPension(current.pensions.length + 1)] }));
+  const pensionIncome = plan.pensions.reduce((sum, pension) => sum + pension.annual, 0);
+  const firstPensionAge = plan.pensions.length > 0 ? Math.min(...plan.pensions.map((pension) => pension.fromAge)) : null;
   const ruleOf = (type: string) => profile.accounts.find((rule) => rule.id === type)!;
   const reachable = plan.pots.filter((pot) => ruleOf(pot.type).accessAge === null).reduce((sum, pot) => sum + pot.balance, 0);
   const locked = plan.pots.filter((pot) => ruleOf(pot.type).accessAge !== null).reduce((sum, pot) => sum + pot.balance, 0);
   const lockedRules = profile.accounts.filter((rule) => rule.accessAge !== null && plan.pots.some((pot) => pot.type === rule.id));
 
   return (
-    <Block title="Accounts" note="Balances today" action={<AddAccount rules={profile.accounts} onAdd={addPot} />} info={<Info title="Accounts"><span>Add the accounts you actually have, one card each. The type carries the rules — when you can touch it and how withdrawals are taxed — so two pensions or two ISAs are treated together, exactly as the tax rules do. The planner drains them in a tax-aware order, so where the money sits matters as much as how much there is.</span><em>Example: an ISA is tax-free any time; a SIPP is locked until 57 and then partly taxed — great for later, useless for the years just after you stop.</em></Info>}>
-      {plan.pots.length === 0 ? <p className="empty">No accounts yet. Add the ones you have — pensions, ISAs, brokerage, cash.</p> : null}
+    <Block title="Accounts" note="Balances today" action={<AddAccount rules={profile.accounts} onAdd={addPot} onAddPension={addPension} />} info={<Info title="Accounts"><span>Add the accounts you actually have, one card each. The type carries the rules — when you can touch it and how withdrawals are taxed — so two pensions or two ISAs are treated together, exactly as the tax rules do. The planner drains them in a tax-aware order, so where the money sits matters as much as how much there is.</span><em>Example: an ISA is tax-free any time; a SIPP is locked until 57 and then partly taxed — great for later, useless for the years just after you stop.</em></Info>}>
+      {plan.pots.length === 0 && plan.pensions.length === 0 ? <p className="empty">No accounts yet. Add the ones you have — pensions, ISAs, brokerage, cash.</p> : null}
       {plan.pots.map((pot) => {
         const rule = ruleOf(pot.type);
         const family = accountFamily(rule);
@@ -90,8 +98,31 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
           </details>
         );
       })}
-      {plan.pots.length > 0 ? (
-        <p className="pot-totals"><span><b>{money.compact(reachable)}</b> reachable now</span><span><b>{money.compact(locked)}</b> locked{lockedRules.length > 0 ? ` until ${Math.min(...lockedRules.map((rule) => plan.accounts[rule.id]?.accessAge ?? rule.accessAge ?? 0))}` : ""}</span></p>
+      {plan.pensions.map((pension) => (
+        <details className="property pot family-income" key={pension.id}>
+          <summary>
+            <span className="property-name">{pension.name}</span>
+            <span className="pot-chip family-income">for life · {pension.fromAge}+</span>
+            <span className="property-stat">{money.format(pension.annual)}/yr from {pension.fromAge}</span>
+          </summary>
+          <div className="property-body">
+            <div className="item-head">
+              <TextField label="Name" value={pension.name} onChange={(value) => updatePension(pension.id, { name: value })} />
+              <button type="button" className="x" aria-label={`Remove ${pension.name}`} onClick={() => removeListItem("pensions", pension.id)}>×</button>
+            </div>
+            <p className="note"><b>Defined benefit / workplace pension</b> · pays a fixed amount for life · taxed as income · today’s money</p>
+            <div className="grid two">
+              <NumberField label="Amount per year" value={pension.annual} prefix={money.symbol} step={100} onChange={(value) => updatePension(pension.id, { annual: value })} hint="Assumed to rise with inflation" />
+              <NumberField label="Starts at age" value={pension.fromAge} min={plan.currentAge} max={85} onChange={(value) => updatePension(pension.id, { fromAge: value })} />
+            </div>
+          </div>
+        </details>
+      ))}
+      {plan.pots.length > 0 || plan.pensions.length > 0 ? (
+        <p className="pot-totals">
+          {plan.pots.length > 0 ? <><span><b>{money.compact(reachable)}</b> reachable now</span><span><b>{money.compact(locked)}</b> locked{lockedRules.length > 0 ? ` until ${Math.min(...lockedRules.map((rule) => plan.accounts[rule.id]?.accessAge ?? rule.accessAge ?? 0))}` : ""}</span></> : null}
+          {plan.pensions.length > 0 ? <span><b>{money.compact(pensionIncome)}</b> a year for life from {firstPensionAge}</span> : null}
+        </p>
       ) : null}
     </Block>
   );
