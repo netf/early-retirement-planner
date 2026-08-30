@@ -15,9 +15,9 @@ function couple(pots: Pot[], overrides: Partial<PlanInputs> = {}): PlanInputs {
 
 test("a household has one slot per person per type; a single plan keeps the old ids", () => {
   const single = ukScenario();
-  assert.deepEqual(accountSlots(single).map((slot) => slot.id), ["isa", "sipp", "gia", "cash", "cashIsa"]);
+  assert.deepEqual(accountSlots(single).map((slot) => slot.id), ["isa", "lisa", "sipp", "gia", "cash", "cashIsa"]);
   const both = couple([]);
-  assert.deepEqual(accountSlots(both).map((slot) => slot.id).slice(5), ["partner:isa", "partner:sipp", "partner:gia", "partner:cash", "partner:cashIsa"]);
+  assert.deepEqual(accountSlots(both).map((slot) => slot.id).slice(6), ["partner:isa", "partner:lisa", "partner:sipp", "partner:gia", "partner:cash", "partner:cashIsa"]);
 });
 
 test("two people, two personal allowances: the same pension income split across a couple is taxed less", () => {

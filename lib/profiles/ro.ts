@@ -33,7 +33,10 @@ export const RO: Jurisdiction = {
   // Long-term rent: 10% on gross less the 20% flat deduction = 8% of gross; the stepped CASS on rental income
   // is approximated by the higher rate above the ~120,000 lei band where it bites hardest.
   property: { rentalTax: { kind: "flat-on-gross", threshold: 121_500, lowRate: 0.08, highRate: 0.16 }, gainTax: { kind: "rate" }, defaultGainRatePercent: 3 },
+  thresholdFreezeYears: 5,
+  mortality: { e65Male: 14.8, e65Female: 18.2, source: 'Eurostat / INS life tables 2023 (period)' },
   notes: [
+    "The pension exemption (3,000 lei a month) is a fixed amount with no indexation rule; the planner assumes it stays frozen for five more years and then keeps pace with inflation.",
     "Pensions — state, Pilon II and Pilon III — are untouched up to 3,000 lei a month (Law 244/2024); the excess pays 10% CASS and then 10% income tax, modelled together as 19% of the excess. Pilon III's exemption of own contributions at withdrawal is not modelled separately.",
     "Brokerage gains via Romanian or EU intermediaries are withheld at 1% (held over a year), 3% (180–365 days) or 6% (under 180 days); dividends pay 16% from 2026. The model charges 3% of each year's positive return as a blended simplification.",
     "Interest on deposits is taxed at 10%. The stepped CASS on investment and rental income (10% of 6/12/24 minimum wages by band) is only approximated, through the higher rental rate above ~120,000 lei of rent.",

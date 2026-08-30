@@ -48,6 +48,12 @@ export type AccountRule = {
   annualLimit?: number;
   /** Rules sharing an allowance: the limit applies to their contributions added together (ISA family). */
   limitGroup?: string;
+  /** This rule keeps its own annual limit but its contributions also use up another group's allowance (LISA inside the ISA allowance). */
+  countsTowardGroup?: string;
+  /** Contributions stop at this age of the holder even if they are still working (LISA: 50). */
+  contributeUntilAge?: number;
+  /** A top-up added to every contribution while the holder is under `untilAge` (LISA: 25% to 50). */
+  bonus?: { rate: number; untilAge: number };
   /** Colour family shown in the UI when the heuristic (locked / tax-free / taxable / cash) would mislead. */
   family?: "pension" | "taxfree" | "taxable" | "cash";
   contributionHint?: string;
@@ -106,6 +112,10 @@ export type Jurisdiction = {
   guaranteedIncome: GuaranteedIncomeRule[];
   property: PropertyRules;
   /** Sentences shown under Method describing simplifications. */
+  /** How many more years the allowance and band thresholds stay fixed in cash terms before uprating with inflation. */
+  thresholdFreezeYears: number;
+  /** Period life expectancy at 65 by sex, from the national statistics office — the mortality overlay is calibrated to it. */
+  mortality: { e65Male: number; e65Female: number; source: string };
   notes: string[];
   /** Every threshold the profile uses, with its provenance. Rendered under Method. */
   sources: SourceNote[];

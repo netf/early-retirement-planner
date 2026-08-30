@@ -99,6 +99,8 @@ export type PlanInputs = {
   profile: ProfileId;
   taxVariant: string;
   taxSurchargePercent: number;
+  /** Years the tax thresholds stay fixed in cash terms before uprating with inflation. */
+  thresholdFreezeYears: number;
   currentAge: number;
   retirementAge: number;
   planToAge: number;
@@ -215,6 +217,7 @@ export function createDefaultPlan(profileId: ProfileId): PlanInputs {
     profile: profileId,
     taxVariant: profile.taxVariants[0]!.id,
     taxSurchargePercent: 0,
+    thresholdFreezeYears: profile.thresholdFreezeYears,
     currentAge: d.currentAge,
     retirementAge: d.retirementAge,
     planToAge: d.planToAge,
@@ -579,6 +582,7 @@ export function normalisePlan(input: unknown): PlanInputs {
     profile: profileId,
     taxVariant: profile.taxVariants.some((variant) => variant.id === raw.taxVariant) ? raw.taxVariant as string : base.taxVariant,
     taxSurchargePercent: clamp(asNumber(raw.taxSurchargePercent, 0), 0, 20),
+    thresholdFreezeYears: clamp(Math.round(asNumber(raw.thresholdFreezeYears, base.thresholdFreezeYears)), 0, 30),
     currentAge,
     retirementAge,
     planToAge,
@@ -728,6 +732,6 @@ export function hasUnsavedData(plan: PlanInputs): boolean {
 export function contributionsTowardLimit(plan: PlanInputs, rule: AccountRule, owner: Owner = "you"): number {
   const profile = profileOf(plan);
   const accounts = ownerAccounts(plan, owner);
-  const members = rule.limitGroup ? profile.accounts.filter((item) => item.limitGroup === rule.limitGroup) : [rule];
+  const members = rule.limitGroup ? profile.accounts.filter((item) => item.limitGroup === rule.limitGroup || item.countsTowardGroup === rule.limitGroup) : [rule];
   return members.reduce((sum, item) => sum + (accounts[item.id]?.monthlyContribution ?? 0) * 12, 0);
 }

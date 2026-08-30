@@ -1,14 +1,16 @@
 "use client";
 
-import { totalCurrentInvestments, type BridgeAnalysis, type MonteCarloResult, type PlanInputs, type Projection } from "../../../lib/planner";
+import { useState } from "react";
+import { medianLifespan, ruinWhileAlive, totalCurrentInvestments, type BridgeAnalysis, type MonteCarloResult, type PlanInputs, type Projection } from "../../../lib/planner";
 import { Bridge } from "./Bridge";
-import { FanChart, FanTable, SpendingChart } from "../charts";
+import { FanChart, FanTable, SpendingChart, type MoneyView } from "../charts";
 import { Info } from "../Info";
 import { useMoney } from "../money";
 import { Stat } from "./Stat";
 
 export function Outcomes({ plan, projection, monteCarlo, bridge, onApply }: { plan: PlanInputs; projection: Projection; monteCarlo: MonteCarloResult; bridge: BridgeAnalysis; onApply: (plan: PlanInputs) => void }) {
   const money = useMoney();
+  const [view, setView] = useMoneyView();
   const retirementYear = projection.years.find((year) => year.age === Math.max(plan.retirementAge, plan.currentAge));
   // The build-up runs to the end of the last working year; the retirement year itself already includes spending.
   const buildYears = projection.years.filter((year) => year.age < plan.retirementAge);
@@ -17,6 +19,8 @@ export function Outcomes({ plan, projection, monteCarlo, bridge, onApply }: { pl
   const takenOut = buildYears.reduce((sum, year) => sum + year.withdrawals, 0);
   const atRetirement = buildYears.at(-1)?.totalInvestments ?? start;
   const growth = atRetirement - start - added + takenOut;
+  const ruin = ruinWhileAlive(plan, monteCarlo.years);
+  const lifespan = medianLifespan(plan);
   return (
     <div className="tab-body">
       {plan.retirementAge > plan.currentAge ? (
@@ -39,10 +43,15 @@ export function Outcomes({ plan, projection, monteCarlo, bridge, onApply }: { pl
           <span><i className="key band outer" />9 in 10 futures</span>
           <span><i className="key median" />Median</span>
           <span><i className="key central" />Central assumptions</span>
+          <div className="switch compact money-view" role="group" aria-label="Money shown as">
+            <button type="button" className={view === "real" ? "on" : ""} aria-pressed={view === "real"} onClick={() => setView("real")}><span>Today’s money</span></button>
+            <button type="button" className={view === "nominal" ? "on" : ""} aria-pressed={view === "nominal"} onClick={() => setView("nominal")}><span>Future money</span></button>
+          </div>
         </div>
       </div>
-      <FanChart result={monteCarlo} projection={projection} plan={plan} />
-      <FanTable result={monteCarlo} projection={projection} plan={plan} />
+      {view === "nominal" ? <p className="note money-view-note">Cash figures in the year they happen, at {plan.portfolio.inflationPercent}% inflation — what your statements would say, not what it buys. Everything else on this page stays in today’s money.</p> : null}
+      <FanChart result={monteCarlo} projection={projection} plan={plan} view={view} />
+      <FanTable result={monteCarlo} projection={projection} plan={plan} view={view} />
       <Bridge plan={plan} bridge={bridge} monteCarlo={monteCarlo} onApply={onApply} />
       {plan.spendingStrategy === "flex" || plan.spendingStrategy === "amortise" ? (
         <div className="spending-block">
@@ -73,8 +82,18 @@ export function Outcomes({ plan, projection, monteCarlo, bridge, onApply }: { pl
       <div className="figures">
         <Stat label={`End of ${Math.max(plan.retirementAge, plan.currentAge)}, central`} value={money.compact(retirementYear?.totalInvestments ?? 0)} note="After the first year of retirement" />
         <Stat label="Typical failure age" value={monteCarlo.medianFailureAge === null ? "None" : String(monteCarlo.medianFailureAge)} tone={monteCarlo.medianFailureAge === null ? "good" : "warn"} />
+        <Stat label="Run out while alive" value={`${ruin < 0.05 ? "<1" : ruin.toFixed(ruin < 10 ? 1 : 0)}%`} tone={ruin <= 100 - plan.targetConfidencePercent ? "good" : "warn"} note={`${100 - Math.round(monteCarlo.successRate)}% if you reach ${plan.planToAge} · even odds of ${lifespan}`} info={<Info title="Run out while alive"><span>The failure rate weighted by the chance of still being around: a future that runs dry at 93 only hurts if you are alive at 93. Uses national life tables for your country, both sexes averaged{plan.partner ? ", and counts the household as alive while either of you is" : ""}. This is the risk that actually matters — “plan to age” is just where the simulation stops.</span><em>Example: 8% of futures fail by 95, but with a 1-in-5 chance of reaching 95 the risk you would ever feel it is nearer 2%.</em></Info>} />
         <Stat label="Tax, central" value={money.compact(projection.totalTax)} note="Total over retirement" />
       </div>
     </div>
   );
+}
+
+const VIEW_KEY = "fire:money-view";
+
+/** A viewer convenience, remembered in this browser only — never part of the plan. */
+function useMoneyView(): [MoneyView, (view: MoneyView) => void] {
+  const [view, setView] = useState<MoneyView>(() => { try { return typeof window !== "undefined" && localStorage.getItem(VIEW_KEY) === "nominal" ? "nominal" : "real"; } catch { return "real"; } });
+  const choose = (next: MoneyView) => { setView(next); try { localStorage.setItem(VIEW_KEY, next); } catch { /* storage unavailable */ } };
+  return [view, choose];
 }

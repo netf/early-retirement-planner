@@ -41,6 +41,7 @@ export function Income({ plan, updaters }: { plan: PlanInputs; updaters: PlanUpd
       {profile.taxVariants.length > 1 ? (
         <Switch label="Tax schedule" value={plan.taxVariant} onChange={(value) => updaters.update("taxVariant", value)} options={profile.taxVariants.map((variant) => ({ value: variant.id, label: variant.label }))} />
       ) : null}
+      <NumberField label="Tax thresholds frozen for" value={plan.thresholdFreezeYears} suffix="years" min={0} max={30} onChange={(value) => updaters.update("thresholdFreezeYears", value)} hint={plan.thresholdFreezeYears === 0 ? "Allowance and bands rise with inflation every year" : `Fixed in cash terms until ${new Date().getFullYear() + plan.thresholdFreezeYears}, then rise with inflation`} info={<Info title="Frozen thresholds"><span>Governments often fix the tax-free allowance and band edges in cash terms for years. With inflation that is a stealth tax rise: the same real income drifts into higher bands. The plan shrinks the thresholds in today’s money for this many years, then uprates them with inflation. The default is what each country has actually announced.</span><em>Example: the UK’s £12,570 allowance is frozen until April 2028 — at 3% inflation it is worth about £11,800 in today’s money by then.</em></Info>} />
       {profile.surchargeInput ? (
         <NumberField label={profile.surchargeInput.label} value={plan.taxSurchargePercent} suffix="%" min={0} max={20} step={0.1} onChange={(value) => updaters.update("taxSurchargePercent", value)} hint={profile.surchargeInput.hint} />
       ) : null}

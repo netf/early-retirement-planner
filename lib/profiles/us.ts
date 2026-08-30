@@ -54,7 +54,10 @@ export const US: Jurisdiction = {
     { id: "socialSecurity", label: "Social Security", taxableShare: 0.85, isState: true, defaults: { annual: 28_000, fromAge: 67 } },
   ],
   property: { rentalTax: { kind: "income" }, gainTax: { kind: "rate" }, defaultGainRatePercent: 15 },
+  thresholdFreezeYears: 0,
+  mortality: { e65Male: 17.0, e65Female: 19.7, source: 'SSA period life table 2021' },
   notes: [
+    "Federal brackets and the standard deduction are indexed to inflation every year, so nothing is frozen by default.",
     "Federal income tax uses 2026 brackets and the standard deduction for your filing status; state tax is the flat rate you enter. Verify the brackets against the IRS tables for your year.",
     "Retirement accounts are treated as inaccessible before 59½ (modelled as 60), so the 10% early-withdrawal penalty never applies. Required minimum distributions are not modelled.",
     "85% of Social Security is counted as taxable income. Rental profit is taxed as ordinary income; capital gains on a sale use the long-term rate you enter.",

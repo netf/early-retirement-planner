@@ -16,3 +16,4 @@ export * from "./stress.ts";
 export { incomeTax } from "./tax.ts";
 export * from "./share.ts";
 export * from "./track.ts";
+export * from "./mortality.ts";

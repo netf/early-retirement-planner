@@ -81,7 +81,7 @@ test("pots: older plans without pots get one per funded type; unknown types are 
   assert.deepEqual(plan.pots.map((pot) => [pot.type, pot.balance, pot.monthlyContribution]), [["isa", 10_000, 0], ["sipp", 0, 100]]);
   assert.equal(plan.accounts.sipp!.accessAge, 58, "the stored access age is kept");
   assert.equal(plan.accounts.gia!.balance, 0);
-  const withJunk = normalisePlan({ ...plan, pots: [...plan.pots, { id: "z", type: "lisa", name: "LISA", balance: 5_000, monthlyContribution: 0, owner: "you" }, { type: "cash", balance: "x" }] });
+  const withJunk = normalisePlan({ ...plan, pots: [...plan.pots, { id: "z", type: "crypto", name: "Crypto", balance: 5_000, monthlyContribution: 0, owner: "you" }, { type: "cash", balance: "x" }] });
   assert.deepEqual(withJunk.pots.map((pot) => pot.type), ["isa", "sipp", "cash"]);
   assert.equal(withJunk.pots.at(-1)!.balance, 0, "a bad number reads as zero, not NaN");
   assert.equal(withJunk.accounts.isa!.balance, 10_000, "accounts are re-derived from the pots that survived");

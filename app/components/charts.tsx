@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { pensionAccessAge, profileOf, stateIncomeRule, statePensionAge, type MonteCarloResult, type MonteCarloYear, type PlanInputs, type Projection } from "../../lib/planner";
+import { aliveAt, pensionAccessAge, profileOf, stateIncomeRule, statePensionAge, type MonteCarloResult, type MonteCarloYear, type PlanInputs, type Projection } from "../../lib/planner";
+
+export type MoneyView = "real" | "nominal";
+
+/** Today’s money → the cash figure of that year, at the plan’s expected inflation. */
+export function inflationFactor(plan: PlanInputs, view: MoneyView) {
+  return (age: number) => view === "nominal" ? (1 + plan.portfolio.inflationPercent / 100) ** Math.max(0, age - plan.currentAge) : 1;
+}
 import { useMoney } from "./money";
 
 const WIDTH = 1000;
@@ -78,20 +85,22 @@ export function AgeRuler({ plan }: { plan: PlanInputs }) {
  * The range of outcomes: a graded fan of the pot across every simulated future (9 in 10 / half),
  * the median, and the central-assumptions path. Hover or use the arrow keys to read any age.
  */
-export function FanChart({ result, projection, plan }: { result: MonteCarloResult; projection: Projection; plan: PlanInputs }) {
+export function FanChart({ result, projection, plan, view = "real" }: { result: MonteCarloResult; projection: Projection; plan: PlanInputs; view?: MoneyView }) {
   const height = 320;
   const money = useMoney();
   const x = useAgeScale(plan);
   const [hover, setHover] = useState<number | null>(null);
-  const years = result.years;
-  const top = Math.max(1, ...years.map((year) => year.p90), ...projection.years.map((year) => year.totalInvestments)) * 1.04;
+  const factor = inflationFactor(plan, view);
+  const years = result.years.map((year) => { const f = factor(year.age); return { ...year, p10: year.p10 * f, p25: year.p25 * f, median: year.median * f, p75: year.p75 * f, p90: year.p90 * f }; });
+  const centralYears = projection.years.map((year) => ({ age: year.age, totalInvestments: year.totalInvestments * factor(year.age) }));
+  const top = Math.max(1, ...years.map((year) => year.p90), ...centralYears.map((year) => year.totalInvestments)) * 1.04;
   const y = (value: number) => 8 + (1 - value / top) * (height - 16);
   const toPoints = (points: [number, number][]) => points.map(([age, value]) => `${x(age).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
   const ribbon = (upper: keyof MonteCarloYear, lower: keyof MonteCarloYear) => `${toPoints(years.map((year) => [year.age, year[upper]]))} ${toPoints([...years].reverse().map((year) => [year.age, year[lower]]))}`;
   const outer = ribbon("p90", "p10");
   const core = ribbon("p75", "p25");
   const median = toPoints(years.map((year) => [year.age, year.median]));
-  const central = toPoints(projection.years.map((year) => [year.age, year.totalInvestments]));
+  const central = toPoints(centralYears.map((year) => [year.age, year.totalInvestments]));
   const gridLevels = [0.25, 0.5, 0.75, 1];
   const events = [
     { age: plan.retirementAge, label: "stop work" },
@@ -113,7 +122,8 @@ export function FanChart({ result, projection, plan }: { result: MonteCarloResul
     setHover(Math.min(plan.planToAge, Math.max(plan.currentAge, current + (event.key === "ArrowLeft" ? -1 : 1))));
   };
   const hovered = hover === null ? null : years.find((year) => year.age === hover) ?? null;
-  const hoveredCentral = hover === null ? null : projection.years.find((year) => year.age === hover) ?? null;
+  const hoveredCentral = hover === null ? null : centralYears.find((year) => year.age === hover) ?? null;
+  const alive = hover === null ? null : aliveAt(plan, hover);
   const left = hover === null ? 0 : (x(hover) / WIDTH) * 100;
   const flip = left > 62;
 
@@ -123,7 +133,7 @@ export function FanChart({ result, projection, plan }: { result: MonteCarloResul
         {gridLevels.slice().reverse().map((level) => <span key={level} style={{ top: `${(1 - level) * 100}%` }}>{money.compact(top * level)}</span>)}
         <span style={{ top: "100%" }}>{money.compact(0)}</span>
       </div>
-      <div className="fan-plot" tabIndex={0} role="img" aria-label={`Investment balance by age across ${result.paths.toLocaleString("en-GB")} simulated futures, in today's money. Use the arrow keys to read a year.`} onKeyDown={onKey} onBlur={() => setHover(null)} onPointerMove={(event) => setHover(ageFromPointer(event))} onPointerDown={(event) => setHover(ageFromPointer(event))} onPointerLeave={() => setHover(null)}>
+      <div className="fan-plot" tabIndex={0} role="img" aria-label={`Investment balance by age across ${result.paths.toLocaleString("en-GB")} simulated futures, in ${view === "nominal" ? "the cash of each year" : "today's money"}. Use the arrow keys to read a year.`} onKeyDown={onKey} onBlur={() => setHover(null)} onPointerMove={(event) => setHover(ageFromPointer(event))} onPointerDown={(event) => setHover(ageFromPointer(event))} onPointerLeave={() => setHover(null)}>
         <svg viewBox={`0 0 ${WIDTH} ${height}`} preserveAspectRatio="none" aria-hidden="true">
           {gridLevels.map((level) => <line key={level} x1={0} x2={WIDTH} y1={y(top * level)} y2={y(top * level)} className="fan-grid" />)}
           <polygon points={outer} className="fan-band outer" />
@@ -137,12 +147,13 @@ export function FanChart({ result, projection, plan }: { result: MonteCarloResul
             <div className="fan-cross" style={{ left: `${left}%` }} aria-hidden="true" />
             {[hovered.p90, hovered.median, hovered.p10].map((value, index) => <i key={index} className={`fan-dot ${index === 1 ? "median" : ""}`} style={{ left: `${left}%`, top: `${(y(value) / height) * 100}%` }} aria-hidden="true" />)}
             <div className={`fan-tip ${flip ? "flip" : ""}`} style={{ left: `${left}%` }} role="status">
-              <strong>Age {hovered.age}</strong>
+              <strong>Age {hovered.age}{view === "nominal" ? <small> · in {new Date().getFullYear() + hovered.age - plan.currentAge} money</small> : null}</strong>
               <span><b>{money.compact(hovered.p90)}</b><small>strong · 1 in 10 do better</small></span>
               <span><b>{money.compact(hovered.median)}</b><small>median</small></span>
               <span><b>{money.compact(hovered.p10)}</b><small>poor · 1 in 10 do worse</small></span>
               {hoveredCentral ? <span><b>{money.compact(hoveredCentral.totalInvestments)}</b><small>central assumptions</small></span> : null}
               <span className={hovered.failedByNow > allowed ? "bad" : ""}><b>{hovered.failedByNow < 0.5 ? "none" : `${Math.round(hovered.failedByNow)}%`}</b><small>have run out by now</small></span>
+              {alive !== null && hovered.age > plan.currentAge ? <span className="alive"><b>{Math.round(alive * 100)}%</b><small>chance {plan.partner ? "one of you is" : "you are"} still here</small></span> : null}
             </div>
           </>
         ) : null}
@@ -161,21 +172,22 @@ export function FanChart({ result, projection, plan }: { result: MonteCarloResul
 }
 
 /** Where every series ends: the reference table under the fan. */
-export function FanTable({ result, projection, plan }: { result: MonteCarloResult; projection: Projection; plan: PlanInputs }) {
+export function FanTable({ result, projection, plan, view = "real" }: { result: MonteCarloResult; projection: Projection; plan: PlanInputs; view?: MoneyView }) {
   const money = useMoney();
   const last = result.years.at(-1);
   if (!last) return null;
+  const f = inflationFactor(plan, view)(plan.planToAge);
   const rows = [
-    { key: "central", label: "Central assumptions", note: "average return every year", value: projection.years.at(-1)?.totalInvestments ?? 0 },
-    { key: "outer", label: "Strong future", note: "1 in 10 do better", value: last.p90 },
-    { key: "core", label: "Upper quarter", note: "3 in 4 do worse", value: last.p75 },
-    { key: "median", label: "Median", note: "half do better, half worse", value: last.median },
-    { key: "core", label: "Lower quarter", note: "3 in 4 do better", value: last.p25 },
-    { key: "outer", label: "Poor future", note: "1 in 10 do worse", value: last.p10 },
+    { key: "central", label: "Central assumptions", note: "average return every year", value: (projection.years.at(-1)?.totalInvestments ?? 0) * f },
+    { key: "outer", label: "Strong future", note: "1 in 10 do better", value: last.p90 * f },
+    { key: "core", label: "Upper quarter", note: "3 in 4 do worse", value: last.p75 * f },
+    { key: "median", label: "Median", note: "half do better, half worse", value: last.median * f },
+    { key: "core", label: "Lower quarter", note: "3 in 4 do better", value: last.p25 * f },
+    { key: "outer", label: "Poor future", note: "1 in 10 do worse", value: last.p10 * f },
   ];
   return (
-    <table className="fan-table" aria-label={`Investments at ${plan.planToAge} by outcome`}>
-      <thead><tr><th>Outcome</th><th>At {plan.planToAge}</th></tr></thead>
+    <table className="fan-table" aria-label={`Investments at ${plan.planToAge} by outcome, in ${view === "nominal" ? "the cash of that year" : "today's money"}`}>
+      <thead><tr><th>Outcome</th><th>At {plan.planToAge}{view === "nominal" ? <small> · {new Date().getFullYear() + plan.planToAge - plan.currentAge} money</small> : null}</th></tr></thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.label}>

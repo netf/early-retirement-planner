@@ -36,18 +36,22 @@ export const UK: Jurisdiction = {
   ],
   accounts: [
     { id: "isa", name: "Stocks & Shares ISA", tag: "tax-free · accessible", growthTax: { kind: "none" }, withdrawal: { kind: "free" }, accessAge: null, annualLimit: 20_000, limitGroup: "isa", contributionHint: "Shares the £20,000 ISA allowance", defaults: { balance: 175_000, monthlyContribution: 1_500 } },
+    { id: "lisa", name: "Lifetime ISA", tag: "tax-free · 25% bonus · locked until 60", growthTax: { kind: "none" }, withdrawal: { kind: "free" }, accessAge: 60, family: "taxfree", annualLimit: 4_000, countsTowardGroup: "isa", contributeUntilAge: 50, bonus: { rate: 0.25, untilAge: 50 }, contributionHint: "Up to £4,000 a year until 50, inside the £20,000 ISA allowance; the 25% bonus is added for you", defaults: { balance: 0, monthlyContribution: 0 } },
     { id: "sipp", name: "SIPP / pension", tag: "taxable · locked until access age", growthTax: { kind: "none" }, withdrawal: { kind: "income", taxFreeShare: 0.25, taxFreeCap: 268_275 }, accessAge: 57, fillsAllowanceFirst: true, annualLimit: 60_000, contributionHint: "Gross, including employer", defaults: { balance: 240_000, monthlyContribution: 1_800 } },
     { id: "gia", name: "General investment account", tag: "taxable · accessible", growthTax: { kind: "drag" }, withdrawal: { kind: "free" }, accessAge: null, defaults: { balance: 50_000, monthlyContribution: 500 } },
     { id: "cash", name: "Cash", tag: "accessible · interest taxed above £1,000", growthTax: { kind: "interest", allowance: 1_000, rate: 0.2 }, withdrawal: { kind: "free" }, accessAge: null, isCash: true, defaults: { balance: 25_000, monthlyContribution: 0 } },
     { id: "cashIsa", name: "Cash ISA", tag: "tax-free · accessible · cash return", growthTax: { kind: "none" }, withdrawal: { kind: "free" }, accessAge: null, isCash: true, family: "taxfree", annualLimit: 20_000, limitGroup: "isa", contributionHint: "Shares the £20,000 ISA allowance", defaults: { balance: 0, monthlyContribution: 0 } },
   ],
-  withdrawalOrder: ["cash", "cashIsa", "isa", "gia", "sipp"],
+  withdrawalOrder: ["cash", "cashIsa", "isa", "gia", "lisa", "sipp"],
   savingTargets: { bridge: "isa", longTerm: "sipp" },
   guaranteedIncome: [
     { id: "statePension", label: "State Pension", taxableShare: 1, isState: true, defaults: { annual: 12_548, fromAge: 68 } },
   ],
   property: { rentalTax: { kind: "income", financeCostCreditRate: 0.2 }, gainTax: { kind: "rate" }, defaultGainRatePercent: 18 },
+  thresholdFreezeYears: 2,
+  mortality: { e65Male: 18.5, e65Female: 21.0, source: 'ONS National life tables, UK 2021–2023 (period)' },
   notes: [
+    "The personal allowance and higher-rate threshold are frozen in cash terms until April 2028 (two more tax years from 2026/27), so in real terms they shrink with inflation until then. A Lifetime ISA takes up to £4,000 a year of the ISA allowance until 50, earns a 25% government bonus on what you pay in, and is treated as locked until 60 — the 25% early-withdrawal charge is not modelled.",
     "Interest on plain cash above the £1,000 personal savings allowance is taxed at 20%; a Cash ISA earns the same cash return tax-free and shares the £20,000 ISA allowance with a Stocks & Shares ISA.",
     "Income tax uses 2026/27 bands for England, Wales and Northern Ireland or Scotland, with the personal allowance tapering above £100,000.",
     "25% of each pension withdrawal is tax-free up to the £268,275 lump-sum allowance. The pension access age rises to 57 in April 2028.",

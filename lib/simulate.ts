@@ -1,6 +1,6 @@
 import { expectedPath, mixReturn, planMix, type MarketPath } from "./market.ts";
 import { annuityPayment, presentValue, realRate, solveMonotonic } from "./money.ts";
-import { accountSlots, incomeStreams, ownerAccounts, pensionAccessAge, profileOf, spendingAtAge, statePensionAge, toHolderAge, type AccountSlot, type Owner, type PlanInputs } from "./plan.ts";
+import { accountSlots, incomeStreams, partnerAgeAt, ownerAccounts, pensionAccessAge, profileOf, spendingAtAge, statePensionAge, toHolderAge, type AccountSlot, type Owner, type PlanInputs } from "./plan.ts";
 import { taxSchedule, type AccountRule, type TaxSchedule } from "./profiles/index.ts";
 import { acquisitionCost, completePurchase, growProperty, initialPropertyState, propertyYear, type PropertyState } from "./property.ts";
 import { allowanceRoom, incomeTax, marginalTax } from "./tax.ts";
@@ -164,12 +164,24 @@ export type SimulateOptions = {
   detail?: boolean;
 };
 
+/** The same schedule with every threshold multiplied by `factor` — how a cash-frozen schedule looks in today's money. */
+export function scaleSchedule(schedule: TaxSchedule, factor: number): TaxSchedule {
+  return {
+    allowance: schedule.allowance * factor,
+    allowanceTaper: schedule.allowanceTaper ? { from: schedule.allowanceTaper.from * factor, rate: schedule.allowanceTaper.rate } : undefined,
+    bands: schedule.bands.map((band) => ({ ...band, upTo: Number.isFinite(band.upTo) ? band.upTo * factor : band.upTo })),
+  };
+}
+
 const NO_TAX_DETAIL: YearDetail["tax"] = { taxableIncome: 0, allowance: 0, incomeTax: 0, taxOnIncome: 0, financeCredit: 0, flatTax: 0, propertyTax: 0, surchargePercent: 0 };
 
 export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, options: SimulateOptions = {}): Projection {
   const wantDetail = options.detail !== false;
   const profile = profileOf(plan);
-  const schedule = taxSchedule(profile, plan.taxVariant);
+  const baseSchedule = taxSchedule(profile, plan.taxVariant);
+  /** This year's schedule in today's money: while thresholds are frozen in cash terms they shrink in real terms. */
+  let schedule = baseSchedule;
+  let frozenDeflator = 1;
   const surcharge = plan.taxSurchargePercent;
   const path = suppliedPath ?? expectedPath(plan);
   const accessAge = pensionAccessAge(plan);
@@ -267,6 +279,8 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
     const bondReturn = path.bondReturns[index] ?? path.bondReturns.at(-1) ?? 0;
     const nominalCashReturn = path.cashReturns[index] ?? plan.portfolio.cashReturnPercent;
     const inflation = path.inflation[index] ?? plan.portfolio.inflationPercent;
+    if (index > 0 && index <= plan.thresholdFreezeYears) frozenDeflator *= 1 + inflation / 100;
+    schedule = frozenDeflator === 1 ? baseSchedule : scaleSchedule(baseSchedule, 1 / frozenDeflator);
     /** Real return of what is actually invested, weighted by balance — the guardrail trigger. */
     let portfolioRealReturn = realRate(path.portfolioReturns[index] ?? 0, inflation);
     for (const owner of OWNERS) ledger.tax[owner].taxableIncome = 0;
@@ -304,7 +318,10 @@ export function simulatePlan(plan: PlanInputs, suppliedPath?: MarketPath, option
           const interest = balance * nominal / 100;
           taxed = nominal - Math.max(0, interest - rule.growthTax.allowance) * rule.growthTax.rate / balance * 100;
         }
-        const contribution = age <= lastContributionAge(slot.owner) ? (ownerAccounts(plan, slot.owner)[rule.id]?.monthlyContribution ?? 0) * 12 : 0;
+        const ownerAge = slot.owner === "partner" ? partnerAgeAt(plan, age) : age;
+        const stillPays = age <= lastContributionAge(slot.owner) && (rule.contributeUntilAge === undefined || ownerAge < rule.contributeUntilAge);
+        const paidIn = stillPays ? (ownerAccounts(plan, slot.owner)[rule.id]?.monthlyContribution ?? 0) * 12 : 0;
+        const contribution = paidIn * (rule.bonus && ownerAge < rule.bonus.untilAge ? 1 + rule.bonus.rate : 1);
         contributions += contribution;
         const real = realRate(taxed, inflation);
         growthByAccount.set(slot.id, balance * real);

@@ -30,7 +30,10 @@ export const PL: Jurisdiction = {
     { id: "zus", label: "Emerytura ZUS", taxableShare: 1, isState: true, defaults: { annual: 36_000, fromAge: 65 } },
   ],
   property: { rentalTax: { kind: "flat-on-gross", threshold: 100_000, lowRate: 0.085, highRate: 0.125 }, gainTax: { kind: "rate-within-years", years: 5 }, defaultGainRatePercent: 19 },
+  thresholdFreezeYears: 5,
+  mortality: { e65Male: 15.4, e65Female: 19.7, source: 'Eurostat / GUS life tables 2023 (period)' },
   notes: [
+    "Kwota wolna (30 000 zł) and the 120 000 zł threshold are fixed amounts with no indexation rule; the planner assumes they stay frozen for five more years and then keep pace with inflation.",
     "PIT uses the 12% / 32% scale with the 30,000 zł tax-free amount and the 120,000 zł threshold. Verify against the current year's rules.",
     "IKE and PPK withdrawals after 60 are tax-free; IKZE withdrawals after 65 pay a flat 10%. The tax deduction on IKZE contributions while working is not modelled.",
     "Gains in a brokerage account and interest on cash are taxed at 19% (podatek Belki) each year as a share of the return.",
