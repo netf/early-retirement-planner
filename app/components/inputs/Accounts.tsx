@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { accountFamily, contributionsTowardLimit, createPension, profileOf, type AccountRule, type PlanInputs } from "../../../lib/planner";
-import { NumberField, TextField } from "../fields";
+import { accountFamily, contributionsTowardLimit, createPension, ownerAccounts, profileOf, type AccountRule, type Owner, type PlanInputs } from "../../../lib/planner";
+import { NumberField, Switch, TextField } from "../fields";
 import { useMoney } from "../money";
 import { Info } from "../Info";
 import { Block } from "./Block";
@@ -51,7 +51,10 @@ function AddAccount({ rules, onAdd, onAddPension }: { rules: AccountRule[]; onAd
 export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanUpdaters }) {
   const money = useMoney();
   const profile = profileOf(plan);
-  const { updatePot, addPot, removePot, updateAccessAge, update, updatePension, removeListItem, setPlan } = updaters;
+  const { updatePot, addPot, removePot, updateAccessAge, update, updatePartner, updatePension, removeListItem, setPlan } = updaters;
+  const partner = plan.partner;
+  const ownerName = (owner: Owner) => owner === "partner" && partner ? partner.name : "You";
+  const ownerSwitch = (value: Owner, onChange: (owner: Owner) => void) => partner ? <Switch label="Whose" value={value} onChange={onChange} options={[{ value: "you", label: "Mine" }, { value: "partner", label: `${partner.name}’s` }]} /> : null;
   const addPension = () => setPlan((current) => ({ ...current, pensions: [...current.pensions, createPension(current.pensions.length + 1)] }));
   const pensionIncome = plan.pensions.reduce((sum, pension) => sum + pension.annual, 0);
   const firstPensionAge = plan.pensions.length > 0 ? Math.min(...plan.pensions.map((pension) => pension.fromAge)) : null;
@@ -66,13 +69,15 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
       {plan.pots.map((pot) => {
         const rule = ruleOf(pot.type);
         const family = accountFamily(rule);
-        const overLimit = rule.annualLimit !== undefined && contributionsTowardLimit(plan, rule) > rule.annualLimit;
-        const sameType = plan.pots.filter((item) => item.type === rule.id).length;
+        const overLimit = rule.annualLimit !== undefined && contributionsTowardLimit(plan, rule, pot.owner) > rule.annualLimit;
+        const sameType = plan.pots.filter((item) => item.type === rule.id && item.owner === pot.owner).length;
+        const accounts = ownerAccounts(plan, pot.owner);
         return (
           <details className={`property pot family-${family}`} key={pot.id}>
             <summary>
               <span className="property-name">{pot.name}</span>
-              <span className={`pot-chip family-${family}`}>{FAMILY_LABEL[family]}{rule.accessAge !== null ? ` · ${plan.accounts[rule.id]?.accessAge ?? rule.accessAge}+` : ""}</span>
+              {partner ? <span className="owner-chip">{ownerName(pot.owner)}</span> : null}
+              <span className={`pot-chip family-${family}`}>{FAMILY_LABEL[family]}{rule.accessAge !== null ? ` · ${accounts[rule.id]?.accessAge ?? rule.accessAge}+` : ""}</span>
               <span className="property-stat">{money.compact(pot.balance)}{pot.monthlyContribution > 0 ? ` · +${money.format(pot.monthlyContribution)}/mo` : ""}</span>
             </summary>
             <div className="property-body">
@@ -81,16 +86,17 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
                 <button type="button" className="x" aria-label={`Remove ${pot.name}`} onClick={() => removePot(pot.id)}>×</button>
               </div>
               <p className="note"><b>{rule.name}</b> · {rule.tag}</p>
+              {ownerSwitch(pot.owner, (owner) => updatePot(pot.id, { owner }))}
               <div className="grid two">
                 <NumberField label="Balance now" value={pot.balance} prefix={money.symbol} step={1_000} onChange={(value) => updatePot(pot.id, { balance: value })} />
                 <NumberField label="Added per month" value={pot.monthlyContribution} prefix={money.symbol} step={100} onChange={(value) => updatePot(pot.id, { monthlyContribution: value })} hint={overLimit ? `Over the ${money.format(rule.annualLimit!)} annual limit${rule.limitGroup ? " shared across your ISAs" : ` across your ${rule.name} accounts`}` : rule.contributionHint} />
               </div>
               {rule.accessAge !== null || hasTaxFreeCap(rule) ? (
                 <>
-                  <div className="sub-head"><span>{rule.name} rules</span><span className="note">{sameType > 1 ? `shared by all ${sameType} of your ${rule.name} accounts` : "set by the type of account"}</span></div>
+                  <div className="sub-head"><span>{partner ? `${ownerName(pot.owner)}${pot.owner === "you" ? "r" : "’s"} ${rule.name} rules` : `${rule.name} rules`}</span><span className="note">{sameType > 1 ? `shared by all ${sameType} ${rule.name} accounts` : "set by the type of account"}</span></div>
                   <div className={`grid ${rule.accessAge !== null && hasTaxFreeCap(rule) ? "two" : "one"}`}>
-                    {rule.accessAge !== null ? <NumberField label="Access age" value={plan.accounts[rule.id]?.accessAge ?? rule.accessAge} min={plan.currentAge} max={80} onChange={(value) => updateAccessAge(rule.id, value)} info={<Info title="Access age"><span>The earliest age this kind of account lets you take money out; it applies to every account of the type. Before then the planner treats them as locked, however much is inside.</span><em>Example: retire at 50 with pensions open from 57 and the first 7 years must be funded from other accounts.</em></Info>} /> : null}
-                    {hasTaxFreeCap(rule) ? <NumberField label="Tax-free cash already taken" value={plan.taxFreeUsed} prefix={money.symbol} step={1_000} onChange={(value) => update("taxFreeUsed", value)} hint={`Counts against the ${money.format(taxFreeCapOf(rule))} lifetime allowance, across all your pensions`} /> : null}
+                    {rule.accessAge !== null ? <NumberField label="Access age" value={accounts[rule.id]?.accessAge ?? rule.accessAge} min={18} max={80} onChange={(value) => updateAccessAge(rule.id, value, pot.owner)} hint={pot.owner === "partner" ? "Their own age" : undefined} info={<Info title="Access age"><span>The earliest age this kind of account lets you take money out; it applies to every account of the type. Before then the planner treats them as locked, however much is inside.</span><em>Example: retire at 50 with pensions open from 57 and the first 7 years must be funded from other accounts.</em></Info>} /> : null}
+                    {hasTaxFreeCap(rule) ? <NumberField label="Tax-free cash already taken" value={pot.owner === "partner" && partner ? partner.taxFreeUsed : plan.taxFreeUsed} prefix={money.symbol} step={1_000} onChange={(value) => pot.owner === "partner" ? updatePartner({ taxFreeUsed: value }) : update("taxFreeUsed", value)} hint={`Counts against ${pot.owner === "partner" && partner ? `${partner.name}’s` : "your"} ${money.format(taxFreeCapOf(rule))} lifetime allowance`} /> : null}
                   </div>
                 </>
               ) : null}
@@ -102,6 +108,7 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
         <details className="property pot family-income" key={pension.id}>
           <summary>
             <span className="property-name">{pension.name}</span>
+            {partner ? <span className="owner-chip">{ownerName(pension.owner)}</span> : null}
             <span className="pot-chip family-income">for life · {pension.fromAge}+</span>
             <span className="property-stat">{money.format(pension.annual)}/yr from {pension.fromAge}</span>
           </summary>
@@ -111,9 +118,10 @@ export function Accounts({ plan, updaters }: { plan: PlanInputs; updaters: PlanU
               <button type="button" className="x" aria-label={`Remove ${pension.name}`} onClick={() => removeListItem("pensions", pension.id)}>×</button>
             </div>
             <p className="note"><b>Defined benefit / workplace pension</b> · pays a fixed amount for life · taxed as income · today’s money</p>
+            {ownerSwitch(pension.owner, (owner) => updatePension(pension.id, { owner }))}
             <div className="grid two">
               <NumberField label="Amount per year" value={pension.annual} prefix={money.symbol} step={100} onChange={(value) => updatePension(pension.id, { annual: value })} hint="Assumed to rise with inflation" />
-              <NumberField label="Starts at age" value={pension.fromAge} min={plan.currentAge} max={85} onChange={(value) => updatePension(pension.id, { fromAge: value })} />
+              <NumberField label="Starts at age" value={pension.fromAge} min={18} max={85} onChange={(value) => updatePension(pension.id, { fromAge: value })} hint={pension.owner === "partner" ? "Their own age" : undefined} />
             </div>
           </div>
         </details>

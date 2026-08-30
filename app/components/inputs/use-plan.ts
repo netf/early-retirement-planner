@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import { createPot, profileOf, withPots, type GuaranteedIncomeInput, type OneOffExpense, type PensionIncome, type PlanInputs, type PortfolioAssumptions, type Pot, type PropertyAsset, type SpendingPhase } from "../../../lib/planner";
+import { createPartner, createPot, profileOf, withPots, type GuaranteedIncomeInput, type OneOffExpense, type Owner, type Partner, type PensionIncome, type PlanInputs, type PortfolioAssumptions, type Pot, type PropertyAsset, type SpendingPhase } from "../../../lib/planner";
 
 export type SetPlan = Dispatch<SetStateAction<PlanInputs>>;
 
@@ -20,17 +20,37 @@ export function usePlanUpdaters(setPlan: SetPlan) {
     });
   }, [setPlan]);
 
-  const addPot = useCallback((type: string) => {
-    setPlan((current) => withPots(current, [...current.pots, createPot(profileOf(current), type, current.pots)]));
+  const addPot = useCallback((type: string, owner: Owner = "you") => {
+    setPlan((current) => withPots(current, [...current.pots, createPot(profileOf(current), type, current.pots, current.partner ? owner : "you")]));
+  }, [setPlan]);
+
+  /** Add or remove the second person. Removing one hands their pots and pensions to the plan holder rather than deleting them. */
+  const setHousehold = useCallback((withPartner: boolean) => {
+    setPlan((current) => {
+      if (withPartner) return current.partner ? current : { ...current, partner: createPartner(current) };
+      if (!current.partner) return current;
+      const pensions = current.pensions.map((pension) => ({ ...pension, owner: "you" as const }));
+      return withPots({ ...current, partner: null, pensions }, current.pots.map((pot) => ({ ...pot, owner: "you" as const })));
+    });
+  }, [setPlan]);
+
+  const updatePartner = useCallback((patch: Partial<Pick<Partner, "name" | "currentAge" | "retirementAge" | "taxFreeUsed">>) => {
+    setPlan((current) => current.partner ? { ...current, partner: { ...current.partner, ...patch } } : current);
+  }, [setPlan]);
+
+  const updatePartnerIncome = useCallback((id: string, patch: Partial<GuaranteedIncomeInput>) => {
+    setPlan((current) => current.partner ? { ...current, partner: { ...current.partner, guaranteedIncome: { ...current.partner.guaranteedIncome, [id]: { ...current.partner.guaranteedIncome[id]!, ...patch } } } } : current);
   }, [setPlan]);
 
   const removePot = useCallback((id: string) => {
     setPlan((current) => withPots(current, current.pots.filter((pot) => pot.id !== id)));
   }, [setPlan]);
 
-  /** Type-level setting: when a locked type opens. */
-  const updateAccessAge = useCallback((type: string, accessAge: number) => {
-    setPlan((current) => ({ ...current, accounts: { ...current.accounts, [type]: { ...current.accounts[type]!, accessAge } } }));
+  /** Type-level setting, per person: when a locked type opens for them. */
+  const updateAccessAge = useCallback((type: string, accessAge: number, owner: Owner = "you") => {
+    setPlan((current) => owner === "partner" && current.partner
+      ? { ...current, partner: { ...current.partner, accounts: { ...current.partner.accounts, [type]: { ...current.partner.accounts[type]!, accessAge } } } }
+      : { ...current, accounts: { ...current.accounts, [type]: { ...current.accounts[type]!, accessAge } } });
   }, [setPlan]);
 
   const updateIncome = useCallback((id: string, patch: Partial<GuaranteedIncomeInput>) => {
@@ -54,7 +74,7 @@ export function usePlanUpdaters(setPlan: SetPlan) {
   const updateProperty = useCallback((id: string, patch: Partial<PropertyAsset>) => updateListItem("properties", id, patch), [updateListItem]);
   const updatePension = useCallback((id: string, patch: Partial<PensionIncome>) => updateListItem("pensions", id, patch), [updateListItem]);
 
-  return { update, updatePot, addPot, removePot, updateAccessAge, updateIncome, updatePortfolio, updatePhase, updateOneOff, updateProperty, updatePension, removeListItem, setPlan };
+  return { update, updatePot, addPot, removePot, updateAccessAge, setHousehold, updatePartner, updatePartnerIncome, updateIncome, updatePortfolio, updatePhase, updateOneOff, updateProperty, updatePension, removeListItem, setPlan };
 }
 
 export type PlanUpdaters = ReturnType<typeof usePlanUpdaters>;

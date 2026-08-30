@@ -255,6 +255,14 @@ h1, h2, h3, h4, p, dl, dd, dt { margin: 0; }
 .this-year-head strong { font-size: 15px; }
 .this-year-body { align-items: center; display: flex; flex-wrap: wrap; gap: 16px; }
 .this-year-body > div { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 220px; }
+.withdrawal-plan { border-top: 2px dashed var(--ink); display: flex; flex-direction: column; gap: 8px; padding-top: 12px; }
+.withdrawal-plan .ledger { display: flex; flex-direction: column; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.withdrawal-plan .ledger li { align-items: baseline; display: grid; gap: 4px 10px; grid-template-columns: minmax(0, 1fr) auto; }
+.withdrawal-plan .ledger li > span:first-child { font-weight: 600; }
+.withdrawal-plan .ledger li > .note { grid-column: 1; }
+.withdrawal-plan .ledger li > b { font-family: var(--mono); font-weight: 600; grid-column: 2; grid-row: 1 / span 2; text-align: right; white-space: nowrap; }
+.withdrawal-plan .ledger li.tax > b { color: var(--red, #b3261e); }
+.withdrawal-plan .instruction { border-left: 3px solid var(--ink); padding-left: 10px; }
 .this-year-amount { font-family: var(--mono); font-size: 26px; font-weight: 600; letter-spacing: -.03em; line-height: 1; }
 .this-year-amount small { color: var(--ink-faint); font-size: 13px; letter-spacing: 0; }
 .verdict-stamp.small { font-size: 22px; padding: 8px 14px; transform: rotate(-3deg); }
@@ -372,6 +380,7 @@ h1, h2, h3, h4, p, dl, dd, dt { margin: 0; }
 .pot.family-cash summary { border-left-color: var(--rule-soft); }
 .pot.family-income summary { border-left-color: var(--lilac); }
 .pot[open] summary, .pot summary:hover { background: var(--paper); }
+.owner-chip { background: var(--paper); border: 2px solid var(--ink); border-radius: 999px; font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 2px 8px; text-transform: uppercase; white-space: nowrap; }
 .pot-chip { border: 2px solid var(--ink); border-radius: 999px; font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 2px 8px; text-transform: uppercase; white-space: nowrap; }
 .pot-chip.family-pension { background: var(--blue); }
 .pot-chip.family-taxfree { background: var(--green); }
