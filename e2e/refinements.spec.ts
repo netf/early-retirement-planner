@@ -16,7 +16,7 @@ test.describe("future money, frozen thresholds, LISA and mortality", () => {
     await page.getByRole("group", { name: "Money shown as" }).getByRole("button", { name: "Future money" }).click();
     const factor = (1 + stored.portfolio.inflationPercent / 100) ** (stored.planToAge - stored.currentAge);
     await expect(medianRow).toHaveText(moneyFor(stored).plain(real * factor));
-    await expect(page.locator(".money-view-note")).toContainText(`${stored.portfolio.inflationPercent}% inflation`);
+    await expect(page.locator(".money-view-note")).toContainText(`${moneyFor(stored).compact(real)} in today’s money = ${moneyFor(stored).compact(real * factor)} in ${new Date().getFullYear() + stored.planToAge - stored.currentAge}`);
     await expect(page.locator(".fan-table thead th").last()).toContainText(`${new Date().getFullYear() + stored.planToAge - stored.currentAge} money`);
 
     await page.reload();

@@ -19,6 +19,8 @@ export function Outcomes({ plan, projection, monteCarlo, bridge, onApply }: { pl
   const takenOut = buildYears.reduce((sum, year) => sum + year.withdrawals, 0);
   const atRetirement = buildYears.at(-1)?.totalInvestments ?? start;
   const growth = atRetirement - start - added + takenOut;
+  const last = monteCarlo.years.at(-1) ?? { median: 0 };
+  const endFactor = (1 + plan.portfolio.inflationPercent / 100) ** (plan.planToAge - plan.currentAge);
   const ruin = ruinWhileAlive(plan, monteCarlo.years);
   const lifespan = medianLifespan(plan);
   return (
@@ -49,7 +51,7 @@ export function Outcomes({ plan, projection, monteCarlo, bridge, onApply }: { pl
           </div>
         </div>
       </div>
-      {view === "nominal" ? <p className="note money-view-note">Cash figures in the year they happen, at {plan.portfolio.inflationPercent}% inflation — what your statements would say, not what it buys. Everything else on this page stays in today’s money.</p> : null}
+      {view === "nominal" ? <p className="note money-view-note">Same outcomes, shown as the cash your statements would show in that year at {plan.portfolio.inflationPercent}% inflation. {money.compact(last.median)} in today’s money = {money.compact(last.median * endFactor)} in {new Date().getFullYear() + plan.planToAge - plan.currentAge}; it buys the same things. Everything else on this page stays in today’s money.</p> : null}
       <FanChart result={monteCarlo} projection={projection} plan={plan} view={view} />
       <FanTable result={monteCarlo} projection={projection} plan={plan} view={view} />
       <Bridge plan={plan} bridge={bridge} monteCarlo={monteCarlo} onApply={onApply} />
