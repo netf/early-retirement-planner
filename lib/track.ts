@@ -1,6 +1,6 @@
 import { expectedPortfolioReturn } from "./market.ts";
 import type { MonteCarloResult } from "./monteCarlo.ts";
-import { newId, totalCurrentInvestments, type Baseline, type BaselineYear, type CheckIn, type PlanInputs } from "./plan.ts";
+import { accountSlots, newId, ownerAccounts, totalCurrentInvestments, type Baseline, type BaselineYear, type CheckIn, type PlanInputs } from "./plan.ts";
 import type { Projection } from "./simulate.ts";
 
 /**
@@ -31,7 +31,7 @@ export function captureBaseline(plan: PlanInputs, monteCarlo: MonteCarloResult, 
 
 /** A check-in from the balances the plan holds right now. */
 export function checkInNow(plan: PlanInputs, date: string): CheckIn {
-  const balances = Object.fromEntries(Object.entries(plan.accounts).map(([id, account]) => [id, Math.round(account.balance)]));
+  const balances = Object.fromEntries(accountSlots(plan).map((slot) => [slot.id, Math.round(ownerAccounts(plan, slot.owner)[slot.rule.id]?.balance ?? 0)]));
   return { id: newId("checkin"), date: date.slice(0, 10), age: plan.currentAge, total: Math.round(totalCurrentInvestments(plan)), balances };
 }
 

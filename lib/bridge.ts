@@ -1,4 +1,4 @@
-import { pensionAccessAge, profileOf, transferBetweenTypes, type PlanInputs } from "./plan.ts";
+import { accountSlots, pensionAccessAge, profileOf, transferBetweenTypes, type PlanInputs } from "./plan.ts";
 import { simulatePlan } from "./simulate.ts";
 
 /**
@@ -20,12 +20,11 @@ export type BridgeAnalysis = {
 };
 
 export function analyseBridge(plan: PlanInputs): BridgeAnalysis {
-  const profile = profileOf(plan);
   const accessAge = pensionAccessAge(plan);
   const fromAge = plan.retirementAge;
   const toAge = Math.max(fromAge, Math.min(accessAge, plan.planToAge));
   const years = toAge - fromAge;
-  const accessibleIds = profile.accounts.filter((rule) => rule.accessAge === null).map((rule) => rule.id);
+  const accessibleIds = accountSlots(plan).filter((slot) => slot.rule.accessAge === null).map((slot) => slot.id);
   const projection = simulatePlan(plan);
   const sum = (age: number) => {
     const year = projection.years.find((item) => item.age === age);
@@ -33,7 +32,7 @@ export function analyseBridge(plan: PlanInputs): BridgeAnalysis {
   };
   const gapYears = projection.years.filter((year) => year.age >= fromAge && year.age < toAge);
   const needOverGap = gapYears.reduce((total, year) => total + year.withdrawals + year.shortfall - year.purchaseShortfall, 0);
-  const accessibleAtStart = fromAge > plan.currentAge ? sum(fromAge - 1) : accessibleIds.reduce((total, id) => total + (plan.accounts[id]?.balance ?? 0), 0);
+  const accessibleAtStart = fromAge > plan.currentAge ? sum(fromAge - 1) : accountSlots(plan).filter((slot) => slot.rule.accessAge === null).reduce((total, slot) => total + ((slot.owner === "partner" ? plan.partner?.accounts[slot.rule.id]?.balance : plan.accounts[slot.rule.id]?.balance) ?? 0), 0);
   const perYear = years > 0 ? needOverGap / years : 0;
   return {
     fromAge,

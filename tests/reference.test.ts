@@ -166,7 +166,7 @@ test("a sold property's proceeds are spent before anything else and a surplus is
 });
 
 test("US: married filing jointly uses the larger deduction and brackets", () => {
-  const single = { ...createDefaultPlan("us"), currentAge: 62, retirementAge: 62, planToAge: 63, desiredMonthlySpending: 0, essentialMonthlySpending: 0, portfolio: FLAT_PORTFOLIO, accounts: noAccounts("us"), guaranteedIncome: noIncome("us"), pensions: [{ id: "employer", name: "Employer pension", annual: 80_000, fromAge: 60 }], properties: [], taxVariant: "single" };
+  const single = { ...createDefaultPlan("us"), currentAge: 62, retirementAge: 62, planToAge: 63, desiredMonthlySpending: 0, essentialMonthlySpending: 0, portfolio: FLAT_PORTFOLIO, accounts: noAccounts("us"), guaranteedIncome: noIncome("us"), pensions: [{ id: "employer", name: "Employer pension", annual: 80_000, fromAge: 60, owner: "you" as const }], properties: [], taxVariant: "single" };
   const married: PlanInputs = { ...single, taxVariant: "married" };
   const singleTax = 12_400 * 0.1 + 38_000 * 0.12 + (80_000 - 16_100 - 50_400) * 0.22;
   const marriedTax = 24_800 * 0.1 + (80_000 - 32_200 - 24_800) * 0.12;

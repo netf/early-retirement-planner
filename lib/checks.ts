@@ -16,16 +16,20 @@ export function planChecks(plan: PlanInputs, monteCarlo?: MonteCarloResult, proj
   const bridgeYears = Math.max(0, pensionAccessAge(plan) - plan.retirementAge);
   const mix = planMix(plan);
 
-  const warnedGroups = new Set<string>();
-  for (const rule of profile.accounts) {
-    if (rule.annualLimit === undefined || contributionsTowardLimit(plan, rule) <= rule.annualLimit) continue;
-    if (rule.limitGroup) {
-      if (warnedGroups.has(rule.limitGroup)) continue;
-      warnedGroups.add(rule.limitGroup);
-      const names = profile.accounts.filter((item) => item.limitGroup === rule.limitGroup).map((item) => item.name).join(" and ");
-      checks.push({ level: "warn", text: `Contributions to ${names} together exceed the shared annual limit of ${rule.annualLimit.toLocaleString(profile.locale)}.` });
-    } else {
-      checks.push({ level: "warn", text: `${rule.name} contributions exceed the annual limit of ${rule.annualLimit.toLocaleString(profile.locale)}.` });
+  // Annual limits are per person: each owner is checked on their own contributions.
+  for (const owner of plan.partner ? (["you", "partner"] as const) : (["you"] as const)) {
+    const who = owner === "partner" ? `${plan.partner!.name}'s ` : "";
+    const warnedGroups = new Set<string>();
+    for (const rule of profile.accounts) {
+      if (rule.annualLimit === undefined || contributionsTowardLimit(plan, rule, owner) <= rule.annualLimit) continue;
+      if (rule.limitGroup) {
+        if (warnedGroups.has(rule.limitGroup)) continue;
+        warnedGroups.add(rule.limitGroup);
+        const names = profile.accounts.filter((item) => item.limitGroup === rule.limitGroup).map((item) => item.name).join(" and ");
+        checks.push({ level: "warn", text: `${who}Contributions to ${names} together exceed the shared annual limit of ${rule.annualLimit.toLocaleString(profile.locale)}.` });
+      } else {
+        checks.push({ level: "warn", text: `${who}${rule.name} contributions exceed the annual limit of ${rule.annualLimit.toLocaleString(profile.locale)}.` });
+      }
     }
   }
   if (plan.portfolio.stocksPercent + plan.portfolio.bondsPercent > 100) checks.push({ level: "warn", text: "Stocks and bonds cannot exceed 100% of the portfolio." });

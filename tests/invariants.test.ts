@@ -78,7 +78,7 @@ function randomPlan(profileId: ProfileId, seed: number): PlanInputs {
       ...(rule.accessAge === null ? {} : { accessAge: intBetween(random, 55, 67) }),
     }])),
     guaranteedIncome: Object.fromEntries(profile.guaranteedIncome.map((rule) => [rule.id, { annual: random() < 0.3 ? 0 : between(random, 0, 40_000) * scale, fromAge: intBetween(random, 60, 70) }])),
-    pensions: random() < 0.5 ? [] : Array.from({ length: intBetween(random, 1, 3) }, (_, index) => ({ id: `p${index}`, name: `Pension ${index + 1}`, annual: between(random, 0, 30_000) * scale, fromAge: intBetween(random, 50, 72) })),
+    pensions: random() < 0.5 ? [] : Array.from({ length: intBetween(random, 1, 3) }, (_, index) => ({ id: `p${index}`, name: `Pension ${index + 1}`, annual: between(random, 0, 30_000) * scale, fromAge: intBetween(random, 50, 72), owner: "you" as const })),
     taxFreeUsed: random() < 0.8 ? 0 : between(random, 0, 300_000),
     portfolio: { ...base.portfolio, stocksPercent: between(random, 0, 100), bondsPercent: between(random, 0, 30), annualFeePercent: between(random, 0, 1), inflationPercent: between(random, 0, 6), taxableDragPercent: between(random, 0, 1) },
     properties,

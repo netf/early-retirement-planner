@@ -21,13 +21,25 @@ export type AccountInput = {
 
 export type GuaranteedIncomeInput = { annual: number; fromAge: number };
 
+export type Owner = "you" | "partner";
+
+/** The second person in a household: their own ages, per-type accounts (aggregated from pots they own), state pension and tax-free cash. Tax is worked out per person. */
+export type Partner = {
+  name: string;
+  currentAge: number;
+  retirementAge: number;
+  accounts: Record<string, AccountInput>;
+  guaranteedIncome: Record<string, GuaranteedIncomeInput>;
+  taxFreeUsed: number;
+};
+
 /** One account as the user owns it — "Vanguard SIPP", "old employer pension" — of a profile-defined type that carries the rules. */
-export type Pot = { id: string; type: string; name: string; balance: number; monthlyContribution: number };
+export type Pot = { id: string; type: string; name: string; balance: number; monthlyContribution: number; owner: Owner };
 
 export type AccountFamily = "pension" | "taxfree" | "taxable" | "cash";
 
 /** A workplace, defined-benefit or private pension (or annuity): a fixed amount, in today's money, from a set age, taxed as income. */
-export type PensionIncome = { id: string; name: string; annual: number; fromAge: number };
+export type PensionIncome = { id: string; name: string; annual: number; fromAge: number; owner: Owner };
 
 /** One age of the forecast frozen at baseline time, in the money of that day. */
 export type BaselineYear = { age: number; p10: number; p25: number; median: number; p75: number; p90: number; central: number; /** Money added minus money taken on the central path that year; used to work out realised returns. */ flows: number };
@@ -39,7 +51,8 @@ export type Baseline = { setAt: string; age: number; startTotal: number; success
 export type CheckIn = { id: string; date: string; age: number; total: number; balances: Record<string, number> };
 
 /** One row of guaranteed income the engine applies: the state rule plus every pension, on a common shape. */
-export type IncomeStream = { id: string; label: string; annual: number; fromAge: number; taxableShare: number };
+/** `fromAge` is always in the plan holder's age, whoever the stream belongs to. */
+export type IncomeStream = { id: string; label: string; annual: number; fromAge: number; taxableShare: number; owner: Owner };
 
 export type SpendingPhase = { id: string; label: string; startAge: number; endAge: number; monthlyAmount: number };
 export type OneOffExpense = { id: string; label: string; age: number; amount: number };
@@ -118,8 +131,10 @@ export type PlanInputs = {
   oneOffExpenses: OneOffExpense[];
   /** What the user owns, one entry per real account. The engine works on `accounts`, the per-type sum of these. */
   pots: Pot[];
-  /** Per account type: the aggregate of `pots` plus type-level settings (access age). Derived; keep it via `withPots`. */
+  /** Per account type for the plan holder: the aggregate of their `pots` plus type-level settings (access age). Derived; keep it via `withPots`. */
   accounts: Record<string, AccountInput>;
+  /** A second person in the household, or null for a single plan. */
+  partner: Partner | null;
   guaranteedIncome: Record<string, GuaranteedIncomeInput>;
   /** Any number of pensions beyond the state one, each with its own start age. */
   pensions: PensionIncome[];
@@ -219,6 +234,7 @@ export function createDefaultPlan(profileId: ProfileId): PlanInputs {
     balancesAsOf: null,
     spendingPhases: d.spendingPhases.map((phase, index) => ({ ...phase, id: `phase-${index + 1}` })),
     oneOffExpenses: [],
+    partner: null,
     pots: potsFromAccounts(profile, Object.fromEntries(profile.accounts.map((rule) => [rule.id, { ...rule.defaults }]))),
     accounts: Object.fromEntries(profile.accounts.map((rule) => [rule.id, { ...rule.defaults, ...(rule.accessAge === null ? {} : { accessAge: rule.accessAge }) }])),
     guaranteedIncome: Object.fromEntries(profile.guaranteedIncome.map((rule) => [rule.id, { ...rule.defaults }])),
@@ -264,7 +280,9 @@ export function activeMonthlySpending(plan: PlanInputs): number {
 }
 
 export function totalCurrentInvestments(plan: PlanInputs): number {
-  return Object.values(plan.accounts).reduce((sum, account) => sum + account.balance, 0);
+  const mine = Object.values(plan.accounts).reduce((sum, account) => sum + account.balance, 0);
+  const theirs = plan.partner ? Object.values(plan.partner.accounts).reduce((sum, account) => sum + account.balance, 0) : 0;
+  return mine + theirs;
 }
 
 export function totalMonthlyContributions(plan: PlanInputs): number {
@@ -366,12 +384,12 @@ function legacyPensions(profileId: ProfileId, rawIncome: UnknownRecord): Pension
   const slot = LEGACY_PENSION_SLOT[profileId];
   const stored = asRecord(rawIncome[slot.id]);
   const annual = asNumber(stored.annual, 0);
-  return annual > 0 ? [{ id: `pension-${slot.id}`, name: slot.name, annual, fromAge: asNumber(stored.fromAge, 65) }] : [];
+  return annual > 0 ? [{ id: `pension-${slot.id}`, name: slot.name, annual, fromAge: asNumber(stored.fromAge, 65), owner: "you" as const }] : [];
 }
 
 function normalisePension(item: unknown, index: number): PensionIncome {
   const raw = asRecord(item);
-  return { id: asString(raw.id, `pension-${index + 1}`), name: asString(raw.name, `Pension ${index + 1}`), annual: Math.max(0, asNumber(raw.annual, 0)), fromAge: clamp(asNumber(raw.fromAge, 65), 18, 110) };
+  return { id: asString(raw.id, `pension-${index + 1}`), name: asString(raw.name, `Pension ${index + 1}`), annual: Math.max(0, asNumber(raw.annual, 0)), fromAge: clamp(asNumber(raw.fromAge, 65), 18, 110), owner: raw.owner === "partner" ? "partner" : "you" };
 }
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
@@ -408,9 +426,9 @@ export function accountFamily(rule: AccountRule): AccountFamily {
 }
 
 /** The engine's per-type view: every rule present, balances and contributions summed across the pots of that type, access age kept. */
-export function aggregatePots(profile: Jurisdiction, pots: Pot[], previous: Record<string, AccountInput> = {}): Record<string, AccountInput> {
+export function aggregatePots(profile: Jurisdiction, pots: Pot[], previous: Record<string, AccountInput> = {}, owner: Owner = "you"): Record<string, AccountInput> {
   return Object.fromEntries(profile.accounts.map((rule) => {
-    const mine = pots.filter((pot) => pot.type === rule.id);
+    const mine = pots.filter((pot) => pot.type === rule.id && pot.owner === owner);
     const account: AccountInput = { balance: mine.reduce((sum, pot) => sum + Math.max(0, pot.balance), 0), monthlyContribution: mine.reduce((sum, pot) => sum + Math.max(0, pot.monthlyContribution), 0) };
     if (rule.accessAge !== null) account.accessAge = previous[rule.id]?.accessAge ?? rule.accessAge;
     return [rule.id, account];
@@ -419,35 +437,42 @@ export function aggregatePots(profile: Jurisdiction, pots: Pot[], previous: Reco
 
 /** A plan with these pots and its per-type accounts brought back in step. */
 export function withPots(plan: PlanInputs, pots: Pot[]): PlanInputs {
-  return { ...plan, pots, accounts: aggregatePots(profileOf(plan), pots, plan.accounts) };
+  const profile = profileOf(plan);
+  const owned = plan.partner ? pots : pots.map((pot) => pot.owner === "you" ? pot : { ...pot, owner: "you" as const });
+  return {
+    ...plan,
+    pots: owned,
+    accounts: aggregatePots(profile, owned, plan.accounts, "you"),
+    partner: plan.partner ? { ...plan.partner, accounts: aggregatePots(profile, owned, plan.partner.accounts, "partner") } : null,
+  };
 }
 
 /** Pots for a per-type record: one per type that holds money or receives contributions (how older plans and the starter migrate). */
-export function potsFromAccounts(profile: Jurisdiction, accounts: Record<string, AccountInput>): Pot[] {
+export function potsFromAccounts(profile: Jurisdiction, accounts: Record<string, AccountInput>, owner: Owner = "you"): Pot[] {
   return profile.accounts.flatMap((rule) => {
     const account = accounts[rule.id];
-    return account && (account.balance > 0 || account.monthlyContribution > 0) ? [{ id: `pot-${rule.id}`, type: rule.id, name: rule.name, balance: account.balance, monthlyContribution: account.monthlyContribution }] : [];
+    return account && (account.balance > 0 || account.monthlyContribution > 0) ? [{ id: owner === "you" ? `pot-${rule.id}` : `pot-partner-${rule.id}`, type: rule.id, name: rule.name, balance: account.balance, monthlyContribution: account.monthlyContribution, owner }] : [];
   });
 }
 
-export function createPot(profile: Jurisdiction, type: string, existing: Pot[]): Pot {
+export function createPot(profile: Jurisdiction, type: string, existing: Pot[], owner: Owner = "you"): Pot {
   const rule = profile.accounts.find((item) => item.id === type) ?? profile.accounts[0]!;
-  const sameType = existing.filter((pot) => pot.type === rule.id).length;
-  return { id: newId("pot"), type: rule.id, name: sameType === 0 ? rule.name : `${rule.name} ${sameType + 1}`, balance: 0, monthlyContribution: 0 };
+  const sameType = existing.filter((pot) => pot.type === rule.id && pot.owner === owner).length;
+  return { id: newId("pot"), type: rule.id, name: sameType === 0 ? rule.name : `${rule.name} ${sameType + 1}`, balance: 0, monthlyContribution: 0, owner };
 }
 
 /** Move money between account types, taking from the pots of the source type in proportion and adding to the first pot of the target (creating one if needed). */
 export function transferBetweenTypes(plan: PlanInputs, fromType: string, toType: string, amount: number): PlanInputs {
   const profile = profileOf(plan);
   // A plan assembled by hand may carry per-type accounts that its pots do not add up to; trust the accounts and rebuild the pots.
-  const inSync = profile.accounts.every((rule) => { const mine = plan.pots.filter((pot) => pot.type === rule.id); return Math.abs(mine.reduce((sum, pot) => sum + pot.balance, 0) - (plan.accounts[rule.id]?.balance ?? 0)) < 0.5; });
-  const basePots = inSync ? plan.pots : potsFromAccounts(profile, plan.accounts);
-  const sources = basePots.filter((pot) => pot.type === fromType);
+  const inSync = profile.accounts.every((rule) => { const mine = plan.pots.filter((pot) => pot.type === rule.id && pot.owner === "you"); return Math.abs(mine.reduce((sum, pot) => sum + pot.balance, 0) - (plan.accounts[rule.id]?.balance ?? 0)) < 0.5; });
+  const basePots = inSync ? plan.pots : [...potsFromAccounts(profile, plan.accounts), ...plan.pots.filter((pot) => pot.owner === "partner")];
+  const sources = basePots.filter((pot) => pot.type === fromType && pot.owner === "you");
   const available = sources.reduce((sum, pot) => sum + pot.balance, 0);
   const moved = Math.min(Math.max(0, amount), available);
   if (moved <= 0) return plan;
-  let pots = basePots.map((pot) => pot.type === fromType ? { ...pot, balance: pot.balance - moved * (pot.balance / available) } : pot);
-  const target = pots.find((pot) => pot.type === toType);
+  let pots = basePots.map((pot) => pot.type === fromType && pot.owner === "you" ? { ...pot, balance: pot.balance - moved * (pot.balance / available) } : pot);
+  const target = pots.find((pot) => pot.type === toType && pot.owner === "you");
   pots = target ? pots.map((pot) => pot.id === target.id ? { ...pot, balance: pot.balance + moved } : pot) : [...pots, { ...createPot(profile, toType, pots), balance: moved }];
   return withPots(plan, pots);
 }
@@ -456,18 +481,64 @@ function normalisePot(item: unknown, index: number, profile: Jurisdiction): Pot 
   const raw = asRecord(item);
   const rule = profile.accounts.find((candidate) => candidate.id === raw.type);
   if (!rule) return null;
-  return { id: asString(raw.id, `pot-${index + 1}`), type: rule.id, name: asString(raw.name, rule.name), balance: Math.max(0, asNumber(raw.balance, 0)), monthlyContribution: Math.max(0, asNumber(raw.monthlyContribution, 0)) };
+  return { id: asString(raw.id, `pot-${index + 1}`), type: rule.id, name: asString(raw.name, rule.name), balance: Math.max(0, asNumber(raw.balance, 0)), monthlyContribution: Math.max(0, asNumber(raw.monthlyContribution, 0)), owner: raw.owner === "partner" ? "partner" : "you" };
 }
 
 export function createPension(index: number): PensionIncome {
-  return { id: newId("pension"), name: index === 1 ? "Workplace pension" : `Pension ${index}`, annual: 6_000, fromAge: 65 };
+  return { id: newId("pension"), name: index === 1 ? "Workplace pension" : `Pension ${index}`, annual: 6_000, fromAge: 65, owner: "you" };
 }
 
 /** Every guaranteed income the plan pays: the state rule first, then each pension, all in today's money. */
 export function incomeStreams(plan: PlanInputs): IncomeStream[] {
   const profile = profileOf(plan);
-  const state = profile.guaranteedIncome.map((rule) => { const input = plan.guaranteedIncome[rule.id]; return { id: rule.id, label: rule.label, annual: input?.annual ?? 0, fromAge: input?.fromAge ?? rule.defaults.fromAge, taxableShare: rule.taxableShare }; });
-  return [...state, ...plan.pensions.map((pension) => ({ id: pension.id, label: pension.name, annual: pension.annual, fromAge: pension.fromAge, taxableShare: 1 }))];
+  const state = profile.guaranteedIncome.map((rule): IncomeStream => { const input = plan.guaranteedIncome[rule.id]; return { id: rule.id, label: rule.label, annual: input?.annual ?? 0, fromAge: input?.fromAge ?? rule.defaults.fromAge, taxableShare: rule.taxableShare, owner: "you" }; });
+  const partner = plan.partner;
+  const partnerState = partner ? profile.guaranteedIncome.map((rule): IncomeStream => { const input = partner.guaranteedIncome[rule.id]; return { id: `partner:${rule.id}`, label: `${partner.name}: ${rule.label}`, annual: input?.annual ?? 0, fromAge: toHolderAge(plan, input?.fromAge ?? rule.defaults.fromAge), taxableShare: rule.taxableShare, owner: "partner" }; }) : [];
+  const pensions = plan.pensions.map((pension): IncomeStream => ({ id: pension.id, label: pension.owner === "partner" && partner ? `${partner.name}: ${pension.name}` : pension.name, annual: pension.annual, fromAge: pension.owner === "partner" && partner ? toHolderAge(plan, pension.fromAge) : pension.fromAge, taxableShare: 1, owner: pension.owner === "partner" && partner ? "partner" : "you" }));
+  return [...state, ...partnerState, ...pensions];
+}
+
+/** The partner's age in the year the plan holder is `age`. */
+export function partnerAgeAt(plan: PlanInputs, age: number): number {
+  return plan.partner ? age - plan.currentAge + plan.partner.currentAge : age;
+}
+
+/** A partner's own age expressed as the plan holder's age in the same year. */
+export function toHolderAge(plan: PlanInputs, partnerAge: number): number {
+  return plan.partner ? partnerAge - plan.partner.currentAge + plan.currentAge : partnerAge;
+}
+
+/** One account the engine tracks: an owner and a type. Ids stay equal to the rule id for the plan holder, so single plans are unchanged. */
+export type AccountSlot = { id: string; owner: Owner; rule: AccountRule };
+
+export function accountSlots(plan: PlanInputs): AccountSlot[] {
+  const profile = profileOf(plan);
+  const mine = profile.accounts.map((rule): AccountSlot => ({ id: rule.id, owner: "you", rule }));
+  const theirs = plan.partner ? profile.accounts.map((rule): AccountSlot => ({ id: `partner:${rule.id}`, owner: "partner", rule })) : [];
+  return [...mine, ...theirs];
+}
+
+export function ownerAccounts(plan: PlanInputs, owner: Owner): Record<string, AccountInput> {
+  return owner === "partner" && plan.partner ? plan.partner.accounts : plan.accounts;
+}
+
+/** "SIPP / pension" for the plan holder, "Anna's SIPP / pension" for the partner. */
+export function slotLabel(plan: PlanInputs, id: string): string {
+  const slot = accountSlots(plan).find((item) => item.id === id);
+  if (!slot) return id;
+  return slot.owner === "partner" && plan.partner ? `${plan.partner.name}: ${slot.rule.name}` : slot.rule.name;
+}
+
+export function createPartner(plan: PlanInputs): Partner {
+  const profile = profileOf(plan);
+  return {
+    name: "Partner",
+    currentAge: plan.currentAge,
+    retirementAge: plan.retirementAge,
+    accounts: aggregatePots(profile, [], {}, "partner"),
+    guaranteedIncome: Object.fromEntries(profile.guaranteedIncome.map((rule) => [rule.id, { ...rule.defaults }])),
+    taxFreeUsed: 0,
+  };
 }
 
 export function normalisePlan(input: unknown): PlanInputs {
@@ -489,7 +560,15 @@ export function normalisePlan(input: unknown): PlanInputs {
       if (rule.accessAge !== null) account.accessAge = asNumber(stored.accessAge, rule.accessAge);
       return [rule.id, account];
     }));
-  const pots: Pot[] = Array.isArray(raw.pots) ? raw.pots.map((item, index) => normalisePot(item, index, profile)).filter((pot): pot is Pot => pot !== null) : potsFromAccounts(profile, storedAccounts);
+  const rawPartner = raw.partner === null || raw.partner === undefined ? null : asRecord(raw.partner);
+  const partnerStored: Record<string, AccountInput> = rawPartner ? Object.fromEntries(profile.accounts.map((rule) => {
+    const stored = asRecord(asRecord(rawPartner.accounts)[rule.id]);
+    const account: AccountInput = { balance: Math.max(0, asNumber(stored.balance, 0)), monthlyContribution: Math.max(0, asNumber(stored.monthlyContribution, 0)) };
+    if (rule.accessAge !== null) account.accessAge = asNumber(stored.accessAge, rule.accessAge);
+    return [rule.id, account];
+  })) : {};
+  const rawPots: Pot[] = Array.isArray(raw.pots) ? raw.pots.map((item, index) => normalisePot(item, index, profile)).filter((pot): pot is Pot => pot !== null) : [...potsFromAccounts(profile, storedAccounts), ...(rawPartner ? potsFromAccounts(profile, partnerStored, "partner") : [])];
+  const pots: Pot[] = rawPartner ? rawPots : rawPots.map((pot) => pot.owner === "you" ? pot : { ...pot, owner: "you" as const });
   const rawIncome = asRecord(raw.guaranteedIncome);
   const rawPortfolio = asRecord(raw.portfolio);
   const rawPhases = Array.isArray(raw.spendingPhases) ? raw.spendingPhases : null;
@@ -537,7 +616,15 @@ export function normalisePlan(input: unknown): PlanInputs {
       })
       : [],
     pots,
-    accounts: aggregatePots(profile, pots, storedAccounts),
+    accounts: aggregatePots(profile, pots, storedAccounts, "you"),
+    partner: rawPartner ? {
+      name: asString(rawPartner.name, "Partner"),
+      currentAge: clamp(asNumber(rawPartner.currentAge, currentAge), 18, 110),
+      retirementAge: clamp(asNumber(rawPartner.retirementAge, retirementAge), 18, 110),
+      accounts: aggregatePots(profile, pots, partnerStored, "partner"),
+      guaranteedIncome: Object.fromEntries(profile.guaranteedIncome.map((rule) => { const stored = asRecord(asRecord(rawPartner.guaranteedIncome)[rule.id]); return [rule.id, { annual: Math.max(0, asNumber(stored.annual, rule.defaults.annual)), fromAge: asNumber(stored.fromAge, rule.defaults.fromAge) }]; })),
+      taxFreeUsed: Math.max(0, asNumber(rawPartner.taxFreeUsed, 0)),
+    } : null,
     guaranteedIncome: Object.fromEntries(profile.guaranteedIncome.map((rule) => {
       const stored = asRecord(rawIncome[rule.id]);
       return [rule.id, { annual: Math.max(0, asNumber(stored.annual, rule.defaults.annual)), fromAge: asNumber(stored.fromAge, rule.defaults.fromAge) }];
@@ -624,6 +711,7 @@ export function buildStarterPlan(profileId: ProfileId, starter: StarterInputs): 
     checkIns: [],
     savedAt: null,
     changedAt: starter.balancesAsOf,
+    partner: null,
     pots: potsFromAccounts(profile, accounts),
     accounts,
     balancesAsOf: starter.balancesAsOf,
@@ -637,8 +725,9 @@ export function hasUnsavedData(plan: PlanInputs): boolean {
 }
 
 /** Contributions counted against a rule's annual limit: its own, or the whole group's when the allowance is shared. */
-export function contributionsTowardLimit(plan: PlanInputs, rule: AccountRule): number {
+export function contributionsTowardLimit(plan: PlanInputs, rule: AccountRule, owner: Owner = "you"): number {
   const profile = profileOf(plan);
+  const accounts = ownerAccounts(plan, owner);
   const members = rule.limitGroup ? profile.accounts.filter((item) => item.limitGroup === rule.limitGroup) : [rule];
-  return members.reduce((sum, item) => sum + (plan.accounts[item.id]?.monthlyContribution ?? 0) * 12, 0);
+  return members.reduce((sum, item) => sum + (accounts[item.id]?.monthlyContribution ?? 0) * 12, 0);
 }

@@ -123,7 +123,7 @@ test("a property bought in a future year does not grow in the purchase year", ()
 
 test("several pensions start in their own years and are taxed together as income", () => {
   const plan = ukScenario({ currentAge: 58, retirementAge: 58, planToAge: 66, desiredMonthlySpending: 0, essentialMonthlySpending: 0, portfolio: FLAT_PORTFOLIO, accounts: noAccounts("uk"), guaranteedIncome: noIncome("uk"), properties: [],
-    pensions: [{ id: "nhs", name: "NHS", annual: 9_000, fromAge: 60 }, { id: "old", name: "Old employer", annual: 8_000, fromAge: 65 }] });
+    pensions: [{ id: "nhs", name: "NHS", annual: 9_000, fromAge: 60, owner: "you" }, { id: "old", name: "Old employer", annual: 8_000, fromAge: 65, owner: "you" }] });
   const years = simulatePlan(plan).years;
   const at = (age: number) => years.find((year) => year.age === age)!;
   assert.equal(at(59).guaranteedIncome, 0);
